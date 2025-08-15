@@ -18,7 +18,8 @@ import java.util.stream.Collectors;
  * "Enable presets" in CLion is implemented via enabling the imported
  * read-only CMake profiles that correspond to those presets.
  * This code is intentionally reflective and defensive to survive across CLion changes,
- * but it is still fragile by nature. Expect it to break on platform updates.
+ * but it is still fragile by nature. These APIs are however present since long time and probably
+ * will not change very often.
  */
 public final class CMakeMuxPresetHandler {
     private static final Logger LOG = Logger.getInstance(CMakeMuxPresetHandler.class);
@@ -50,23 +51,17 @@ public final class CMakeMuxPresetHandler {
             Class<?> loaderCls = Class.forName("com.jetbrains.cidr.cpp.cmake.presets.CMakePresetLoader");
             Method getService = project.getClass().getMethod("getService", Class.class);
             Object loader = getService.invoke(project, loaderCls);
-            if (loader != null) {
-                // Prefer load(false) to avoid redundant reloads; profiles will be in place for toggling
-                Method loadMethod = null;
-                for (Method m : loaderCls.getMethods()) {
-                    if (m.getName().equals("load")) {
-                        loadMethod = m;
-                        break;
-                    }
-                }
-                if (loadMethod != null) {
-                    if (loadMethod.getParameterCount() == 1 && loadMethod.getParameterTypes()[0] == boolean.class) {
-                        loadMethod.invoke(loader, false);
-                    } else {
-                        loadMethod.invoke(loader);
-                    }
-                }
+            if (loader == null) {
+                LOG.warn("[CMakeMux] CMakePresetLoader service is null, bail out.");
+                return;
             }
+            // Use load(boolean) to avoid redundant reloads; bail if not available
+            Method loadMethod = findMethod(loaderCls, "load", boolean.class);
+            if (loadMethod == null) {
+                LOG.warn("[CMakeMux] CMakePresetLoader.load(boolean) not found, bail out.");
+                return;
+            }
+            loadMethod.invoke(loader, false);
         } catch (Throwable t) {
             // Non-fatal; proceed with best-effort
             LOG.debug("[CMakeMux] ensurePresetsLoaded failed (continuing): " + t.getMessage(), t);
@@ -75,55 +70,46 @@ public final class CMakeMuxPresetHandler {
 
     @SuppressWarnings("unchecked")
     private static int enableMatchingImportedProfiles(Project project, List<Pattern> patterns) throws Exception {
-        // Prioritize CIDR namespace first (CLion’s CMake plugin)
-        String[] settingsClassCandidates = new String[]{
-                "com.jetbrains.cidr.cpp.cmake.CMakeSettings"
-        };
-
-        Object settings = null;
-        Class<?> settingsClass = null;
-
-        for (String fqcn : settingsClassCandidates) {
-            try {
-                Class<?> cls = Class.forName(fqcn);
-                Method getInstance = findMethod(cls, "getInstance", Project.class);
-                if (getInstance != null) {
-                    Object inst = getInstance.invoke(null, project);
-                    if (inst != null) {
-                        settings = inst;
-                        settingsClass = cls;
-                        break;
-                    }
-                }
-            } catch (ClassNotFoundException ignored) {
-            }
+        // Resolve CLion’s CMake settings
+        Class<?> settingsClass;
+        try {
+            settingsClass = Class.forName("com.jetbrains.cidr.cpp.cmake.CMakeSettings");
+        } catch (ClassNotFoundException e) {
+            LOG.warn("[CMakeMux] CMakeSettings class not found, bail out.");
+            return 0;
         }
+
+        Method getInstance = findMethod(settingsClass, "getInstance", Project.class);
+        if (getInstance == null) {
+            LOG.warn("[CMakeMux] CMakeSettings.getInstance(Project) not found, bail out.");
+            return 0;
+        }
+        Object settings = getInstance.invoke(null, project);
         if (settings == null) {
-            LOG.warn("[CMakeMux] Could not resolve CLion CMake settings class via known candidates.");
+            LOG.warn("[CMakeMux] CMakeSettings instance is null, bail out.");
             return 0;
         }
 
-        List<Object> profiles = null;
-
-        // 1) Common direct getters
-        for (String getterName : new String[]{"getProfiles"}) {
-            Method m = findMethod(settingsClass, getterName);
-            if (m != null) {
-                Object res = m.invoke(settings);
-                if (res instanceof List) {
-                    profiles = (List<Object>) res;
-                    break;
-                }
-            }
-        }
-
-        if (profiles == null) {
-            LOG.warn("[CMakeMux] Could not obtain CMake profiles list from CLion settings.");
+        Method getProfiles = findMethod(settingsClass, "getProfiles");
+        if (getProfiles == null) {
+            LOG.warn("[CMakeMux] CMakeSettings.getProfiles() not found, bail out.");
             return 0;
         }
+        Object res = getProfiles.invoke(settings);
+        if (!(res instanceof List)) {
+            LOG.warn("[CMakeMux] CMakeSettings.getProfiles() returned non-list or null, bail out.");
+            return 0;
+        }
+        List<Object> profiles = (List<Object>) res;
 
         int enabled = 0;
         for (Object profile : profiles) {
+            if (profile == null) {
+                LOG.warn("[CMakeMux] Encountered null profile, bail out.");
+                return enabled;
+            }
+
+            // Keep dual getter for name/displayName
             String name = firstNonNull(
                     invokeStringGetter(profile, "getName"),
                     invokeStringGetter(profile, "getDisplayName")
@@ -132,48 +118,49 @@ public final class CMakeMuxPresetHandler {
 
             if (!matchesAny(patterns, name)) continue;
 
-            Boolean current = coalesceBoolean(
-                    invokeBooleanGetter(profile, "getEnabled")
-            );
+            Boolean current = invokeBooleanGetter(profile, "getEnabled");
             if (Boolean.TRUE.equals(current)) continue;
 
-            Field enabledField = coalesceBooleanField(profile.getClass(), "enabled");
-            if (enabledField != null) {
-                enabledField.setAccessible(true);
-                enabledField.set(profile, true);
-                enabled++;
+            Field enabledField = findBooleanField(profile.getClass(), "enabled");
+            if (enabledField == null) {
+                LOG.warn("[CMakeMux] 'enabled' field not found on profile, bail out.");
+                return enabled;
             }
+            enabledField.setAccessible(true);
+            enabledField.set(profile, true);
+            enabled++;
         }
 
         Method setProfiles = findMethod(settingsClass, "setProfiles", List.class);
-        if (setProfiles != null) {
-            setProfiles.invoke(settings, profiles);
+        if (setProfiles == null) {
+            LOG.warn("[CMakeMux] CMakeSettings.setProfiles(List) not found, bail out.");
+            return enabled;
         }
+        setProfiles.invoke(settings, profiles);
         return enabled;
     }
 
     private static void scheduleCMakeReload(Project project) {
-        String[] workspaceCandidates = new String[]{
-                "com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspace",
-        };
-        for (String fqcn : workspaceCandidates) {
-            try {
-                Class<?> wsClass = Class.forName(fqcn);
-                Method getInstance = findMethod(wsClass, "getInstance", Project.class);
-                if (getInstance == null) continue;
-
-                Object ws = getInstance.invoke(null, project);
-                if (ws == null) continue;
-
-                for (String mName : new String[]{"scheduleReload"}) {
-                    Method m = findAnyMethod(wsClass, mName);
-                    if (m != null) {
-                        m.invoke(ws);
-                        return;
-                    }
-                }
-            } catch (Throwable ignored) {
+        try {
+            Class<?> wsClass = Class.forName("com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspace");
+            Method getInstance = findMethod(wsClass, "getInstance", Project.class);
+            if (getInstance == null) {
+                LOG.warn("[CMakeMux] CMakeWorkspace.getInstance(Project) not found, bail out.");
+                return;
             }
+            Object ws = getInstance.invoke(null, project);
+            if (ws == null) {
+                LOG.warn("[CMakeMux] CMakeWorkspace instance is null, bail out.");
+                return;
+            }
+            Method scheduleReload = findMethod(wsClass, "scheduleReload");
+            if (scheduleReload == null) {
+                LOG.warn("[CMakeMux] CMakeWorkspace.scheduleReload() not found, bail out.");
+                return;
+            }
+            scheduleReload.invoke(ws);
+        } catch (Throwable t) {
+            LOG.debug("[CMakeMux] scheduleCMakeReload failed (continuing): " + t.getMessage(), t);
         }
     }
 
@@ -184,49 +171,6 @@ public final class CMakeMuxPresetHandler {
             if (p.matcher(name).find()) return true;
         }
         return false;
-    }
-
-    private static Method findAnyMethod(Class<?> cls, String name) {
-        Method m = findMethod(cls, name);
-        if (m != null) return m;
-        for (Method cand : cls.getMethods()) {
-            if (cand.getName().equals(name)) {
-                cand.setAccessible(true);
-                return cand;
-            }
-        }
-        for (Method cand : cls.getDeclaredMethods()) {
-            if (cand.getName().equals(name)) {
-                cand.setAccessible(true);
-                return cand;
-            }
-        }
-        return null;
-    }
-
-    private static Method firstNonNullMethod(Class<?> cls, String[] names, Class<?>[] paramTypes) {
-        for (String n : names) {
-            Method m = findMethod(cls, n, paramTypes);
-            if (m != null) return m;
-        }
-        return null;
-    }
-
-    private static Field coalesceBooleanField(Class<?> cls, String... names) {
-        for (String n : names) {
-            Field f = findBooleanField(cls, n);
-            if (f != null) return f;
-        }
-        return null;
-    }
-
-    private static Boolean coalesceBoolean(Boolean... vals) {
-        for (Boolean v : vals) if (v != null) return v;
-        return null;
-    }
-
-    private static String firstNonNull(String a, String b) {
-        return a != null ? a : b;
     }
 
     private static Method findMethod(Class<?> cls, String name, Class<?>... paramTypes) {
@@ -249,26 +193,16 @@ public final class CMakeMuxPresetHandler {
         }
     }
 
-    private static Field findField(Class<?> cls, String name) {
-        try {
-            return cls.getField(name);
-        } catch (NoSuchFieldException e1) {
-            try {
-                Field f = cls.getDeclaredField(name);
-                f.setAccessible(true);
-                return f;
-            } catch (NoSuchFieldException e2) {
-                return null;
-            }
-        }
-    }
-
     private static Field findBooleanField(Class<?> cls, String name) {
-        Field f = findField(cls, name);
-        if (f == null) return null;
-        Class<?> t = f.getType();
-        if (t == boolean.class || t == Boolean.class) return f;
-        return null;
+        try {
+            Field f = cls.getDeclaredField(name);
+            f.setAccessible(true);
+            Class<?> t = f.getType();
+            if (t == boolean.class || t == Boolean.class) return f;
+            return null;
+        } catch (NoSuchFieldException e) {
+            return null;
+        }
     }
 
     private static String invokeStringGetter(Object obj, String getter) {
@@ -292,6 +226,10 @@ public final class CMakeMuxPresetHandler {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static String firstNonNull(String a, String b) {
+        return a != null ? a : b;
     }
 
     private CMakeMuxPresetHandler() {

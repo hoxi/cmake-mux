@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 180" width="256" height="256">
+    <!-- Thicker triangle outline -->
+    <polygon points="64,10 5,127 123,127" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linejoin="round"/>
+
+    <!-- Arrow shafts -->
+    <g stroke-width="7" fill="none">
+        <line x1="32" y1="150" x2="32" y2="135" stroke="#FFFFFF"/>
+        <line x1="64" y1="150" x2="64" y2="135" stroke="#FFFFFF"/>
+        <line x1="96" y1="150" x2="96" y2="135" stroke="#FFFFFF"/>
+    </g>
+
+    <!-- Arrowheads (now filled white) -->
+    <g stroke-width="2" fill="#FFFFFF">
+        <polygon points="32,129 24.5,136 39.5,136" stroke="#FFFFFF"/>
+        <polygon points="64,129 56.5,136 71.5,136" stroke="#FFFFFF"/>
+        <polygon points="96,129 88.5,136 103.5,136" stroke="#FFFFFF"/>
+    </g>
+</svg>
