@@ -1,31 +1,44 @@
 package net.tagpad.cmakemux;
 
-import org.jetbrains.annotations.NotNull;
+import com.intellij.util.xmlb.annotations.Attribute;
+import com.intellij.util.xmlb.annotations.Tag;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
 /** Simple model: nickname + absolute path to the CMakeLists.txt */
+@Tag("entry")
 public class CMakeMuxEntry {
+    @Attribute("nickname")
     private String nickname;
-    private String path; // absolute filesystem path
 
-    public CMakeMuxEntry() { }
+    @Attribute("path")
+    private String path;
 
-    public CMakeMuxEntry(@NotNull String nickname, @NotNull String path) {
+    // Required for XML serialization
+    public CMakeMuxEntry() {
+    }
+
+    public CMakeMuxEntry(String nickname, String path) {
         this.nickname = nickname;
         this.path = path;
     }
 
-    @NotNull
-    public String getNickname() { return nickname; }
+    public String getNickname() {
+        return nickname;
+    }
 
-    public void setNickname(@NotNull String nickname) { this.nickname = nickname; }
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
 
-    @NotNull
-    public String getPath() { return path; }
+    public String getPath() {
+        return path;
+    }
 
-    public void setPath(@NotNull String path) { this.path = path; }
+    public void setPath(String path) {
+        this.path = path;
+    }
 
     @Override
     public String toString() {
