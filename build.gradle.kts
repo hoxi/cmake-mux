@@ -23,6 +23,7 @@ dependencies {
 
         // Add necessary plugin dependencies for compilation here, example:
         bundledPlugin("com.intellij.clion")
+        bundledPlugin("com.intellij.clion.cmake")
     }
 }
 

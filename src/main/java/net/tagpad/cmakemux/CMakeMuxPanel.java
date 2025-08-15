@@ -145,7 +145,6 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             return;
         }
 
-        // Look up CLion’s action
         AnAction action = ActionManager.getInstance().getAction("CMake.LoadCMakeProject");
 
         DataContext dataContext = SimpleDataContext.builder()
@@ -162,6 +161,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                     null,
                     null
             );
+            CMakeMuxPresetHandler.enableMatchingPresets(project, java.util.List.of(".*"));
         });
 
     }
