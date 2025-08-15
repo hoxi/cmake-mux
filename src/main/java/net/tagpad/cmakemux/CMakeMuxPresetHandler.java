@@ -15,10 +15,8 @@ import java.util.stream.Collectors;
 /**
  * Internal-API based helper to enable all imported CMake profiles
  * whose names match any of the provided regex patterns.
- *
  * "Enable presets" in CLion is implemented via enabling the imported
  * read-only CMake profiles that correspond to those presets.
- *
  * This code is intentionally reflective and defensive to survive across CLion changes,
  * but it is still fragile by nature. Expect it to break on platform updates.
  */
@@ -78,14 +76,8 @@ public final class CMakeMuxPresetHandler {
     @SuppressWarnings("unchecked")
     private static int enableMatchingImportedProfiles(Project project, List<Pattern> patterns) throws Exception {
         // Prioritize CIDR namespace first (CLion’s CMake plugin)
-        String[] settingsClassCandidates = new String[] {
-                "com.jetbrains.cidr.cpp.cmake.CMakeSettings",
-                "com.jetbrains.cidr.cpp.cmake.settings.CMakeSettings",
-                "com.jetbrains.cidr.cpp.cmake.settings.CMakeProfilesSettings",
-                "com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspaceSettings",
-                "com.jetbrains.cmake.settings.CMakeSettings",
-                "com.jetbrains.cmake.workspace.CMakeWorkspaceSettings",
-                "com.jetbrains.cmake.project.CMakeSettings"
+        String[] settingsClassCandidates = new String[]{
+                "com.jetbrains.cidr.cpp.cmake.CMakeSettings"
         };
 
         Object settings = null;
@@ -114,46 +106,13 @@ public final class CMakeMuxPresetHandler {
         List<Object> profiles = null;
 
         // 1) Common direct getters
-        for (String getterName : new String[] {"getProfiles", "getConfigurations"}) {
+        for (String getterName : new String[]{"getProfiles"}) {
             Method m = findMethod(settingsClass, getterName);
             if (m != null) {
                 Object res = m.invoke(settings);
                 if (res instanceof List) {
                     profiles = (List<Object>) res;
                     break;
-                }
-            }
-        }
-
-        // 2) Via state bean
-        if (profiles == null) {
-            Method getState = findMethod(settingsClass, "getState");
-            if (getState != null) {
-                Object state = getState.invoke(settings);
-                if (state != null) {
-                    for (String fieldName : new String[] {"profiles", "configurations"}) {
-                        Field f = findField(state.getClass(), fieldName);
-                        if (f != null) {
-                            f.setAccessible(true);
-                            Object val = f.get(state);
-                            if (val instanceof List) {
-                                profiles = (List<Object>) val;
-                                break;
-                            }
-                        }
-                    }
-                    if (profiles == null) {
-                        for (String getterName : new String[] {"getProfiles", "getConfigurations"}) {
-                            Method m = findMethod(state.getClass(), getterName);
-                            if (m != null) {
-                                Object val = m.invoke(state);
-                                if (val instanceof List) {
-                                    profiles = (List<Object>) val;
-                                    break;
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -174,57 +133,28 @@ public final class CMakeMuxPresetHandler {
             if (!matchesAny(patterns, name)) continue;
 
             Boolean current = coalesceBoolean(
-                    invokeBooleanGetter(profile, "isEnabled"),
-                    invokeBooleanGetter(profile, "getEnabled"),
-                    invokeBooleanGetter(profile, "isActive")
+                    invokeBooleanGetter(profile, "getEnabled")
             );
             if (Boolean.TRUE.equals(current)) continue;
 
-            Method setEnabled = firstNonNullMethod(profile.getClass(),
-                    new String[] {"setEnabled", "setActive"},
-                    new Class<?>[] {boolean.class}
-            );
-            if (setEnabled == null) {
-                Field enabledField = coalesceBooleanField(profile.getClass(), "enabled", "active");
-                if (enabledField != null) {
-                    enabledField.setAccessible(true);
-                    enabledField.set(profile, true);
-                    enabled++;
-                    continue;
-                }
-            } else {
-                setEnabled.invoke(profile, true);
+            Field enabledField = coalesceBooleanField(profile.getClass(), "enabled");
+            if (enabledField != null) {
+                enabledField.setAccessible(true);
+                enabledField.set(profile, true);
                 enabled++;
             }
         }
 
-        // Persist if necessary
         Method setProfiles = findMethod(settingsClass, "setProfiles", List.class);
-        Method setConfigurations = findMethod(settingsClass, "setConfigurations", List.class);
         if (setProfiles != null) {
             setProfiles.invoke(settings, profiles);
-        } else if (setConfigurations != null) {
-            setConfigurations.invoke(settings, profiles);
-        } else {
-            Method loadState = findMethod(settingsClass, "loadState", Object.class);
-            Method getState = findMethod(settingsClass, "getState");
-            if (loadState != null && getState != null) {
-                Object state = getState.invoke(settings);
-                if (state != null) {
-                    loadState.invoke(settings, state);
-                }
-            }
         }
-
         return enabled;
     }
 
     private static void scheduleCMakeReload(Project project) {
-        String[] workspaceCandidates = new String[] {
+        String[] workspaceCandidates = new String[]{
                 "com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspace",
-                "com.jetbrains.cidr.cpp.cmake.project.CMakeWorkspace",
-                "com.jetbrains.cmake.workspace.CMakeWorkspace",
-                "com.jetbrains.cmake.project.CMakeWorkspace"
         };
         for (String fqcn : workspaceCandidates) {
             try {
@@ -235,14 +165,10 @@ public final class CMakeMuxPresetHandler {
                 Object ws = getInstance.invoke(null, project);
                 if (ws == null) continue;
 
-                for (String mName : new String[] {"scheduleRebuild", "scheduleReload", "reload", "generate", "scheduleGenerate"}) {
+                for (String mName : new String[]{"scheduleReload"}) {
                     Method m = findAnyMethod(wsClass, mName);
                     if (m != null) {
-                        if (m.getParameterCount() == 1 && m.getParameterTypes()[0] == boolean.class) {
-                            m.invoke(ws, true);
-                        } else {
-                            m.invoke(ws);
-                        }
+                        m.invoke(ws);
                         return;
                     }
                 }
@@ -368,5 +294,6 @@ public final class CMakeMuxPresetHandler {
         }
     }
 
-    private CMakeMuxPresetHandler() {}
+    private CMakeMuxPresetHandler() {
+    }
 }
