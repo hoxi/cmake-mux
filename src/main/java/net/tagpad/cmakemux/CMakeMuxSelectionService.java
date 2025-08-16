@@ -17,7 +17,6 @@ public final class CMakeMuxSelectionService implements Disposable {
     public CMakeMuxSelectionService(Project project) {
         this.project = project;
 
-        // Use this service instance as the parent Disposable (not the project)
         var connection = project.getMessageBus().connect(this);
         connection.subscribe(AnActionListener.TOPIC, new AnActionListener() {
             @Override

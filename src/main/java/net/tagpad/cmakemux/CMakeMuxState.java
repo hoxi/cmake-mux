@@ -5,6 +5,7 @@ import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.io.FileUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -51,7 +52,7 @@ public class CMakeMuxState implements PersistentStateComponent<CMakeMuxState.Sta
     public void addOrReplace(CMakeMuxEntry entry) {
         // Replace on same path; otherwise add.
         for (int i = 0; i < state.entries.size(); i++) {
-            if (state.entries.get(i).getPath().equals(entry.getPath())) {
+            if (FileUtil.pathsEqual(state.entries.get(i).getPath(), entry.getPath())) {
                 state.entries.set(i, entry);
                 return;
             }
@@ -60,6 +61,6 @@ public class CMakeMuxState implements PersistentStateComponent<CMakeMuxState.Sta
     }
 
     public void removeByPath(String path) {
-        state.entries.removeIf(e -> e.getPath().equals(path));
+        state.entries.removeIf(e -> FileUtil.pathsEqual(e.getPath(), path));
     }
 }
