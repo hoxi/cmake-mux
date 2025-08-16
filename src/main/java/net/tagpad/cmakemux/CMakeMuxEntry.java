@@ -59,7 +59,7 @@ public class CMakeMuxEntry {
 
     @Override
     public String toString() {
-        return nickname + " \u2014 " + path;
+        return nickname;
     }
 
     @Override
