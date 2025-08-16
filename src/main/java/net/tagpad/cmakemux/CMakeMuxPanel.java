@@ -35,13 +35,18 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         this.project = project;
         this.model = new DefaultListModel<>();
         this.list = new JBList<>(model);
-        this.list.setCellRenderer(new EntryRenderer());
+        this.list.setCellRenderer(new EntryRenderer(() -> CMakeMuxSelectionService.getInstance(project).getActivePath()));
         refreshFromState();
 
         // Listen for changes and refresh (provide the listener!)
         project.getMessageBus()
                 .connect(this)
                 .subscribe(CMakeMuxEvents.TOPIC, (CMakeMuxEvents) this::onEntriesChanged);
+
+        // Listen for active selection changes to repaint bold state
+        project.getMessageBus()
+                .connect(this)
+                .subscribe(CMakeMuxSelectionEvents.TOPIC, (CMakeMuxSelectionEvents) this::onActiveSelectionChanged);
 
         // Double-click to open target file
         list.addMouseListener(new MouseAdapter() {
@@ -72,6 +77,14 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             refreshFromState();
         } else {
             SwingUtilities.invokeLater(this::refreshFromState);
+        }
+    }
+
+    private void onActiveSelectionChanged() {
+        if (SwingUtilities.isEventDispatchThread()) {
+            list.repaint();
+        } else {
+            SwingUtilities.invokeLater(list::repaint);
         }
     }
 
@@ -126,6 +139,12 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     public void dispose() { /* disposed with content */ }
 
     private static class EntryRenderer extends DefaultListCellRenderer {
+        private final java.util.function.Supplier<String> activePathSupplier;
+
+        EntryRenderer(java.util.function.Supplier<String> activePathSupplier) {
+            this.activePathSupplier = activePathSupplier;
+        }
+
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
@@ -133,6 +152,10 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 CMakeMuxEntry e = (CMakeMuxEntry) value;
                 setText(e.getNickname() + "  —  " + e.getPath());
                 setBorder(JBUI.Borders.empty(2, 6));
+
+                String activePath = activePathSupplier.get();
+                boolean isActive = activePath != null && activePath.equals(e.getPath());
+                setFont(getFont().deriveFont(isActive ? Font.BOLD : Font.PLAIN));
             }
             return this;
         }
@@ -163,6 +186,10 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                     null // no InputEvent
             );
             ActionUtil.performAction(action, event);
+
+            // Mark as active (in case external processing is async)
+            CMakeMuxSelectionService.getInstance(project).setActivePath(vf.getPath());
+
             CMakeMuxPresetHandler.enableMatchingPresets(project, java.util.List.of(".*"));
         });
 
