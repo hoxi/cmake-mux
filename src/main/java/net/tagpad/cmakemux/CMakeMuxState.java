@@ -39,6 +39,15 @@ public class CMakeMuxState implements PersistentStateComponent<CMakeMuxState.Sta
     @Override
     public void loadState(@NotNull State state) {
         this.state.entries = new ArrayList<>(state.entries);
+        // Normalize legacy paths on load
+        for (CMakeMuxEntry e : this.state.entries) {
+            if (e != null && e.getPath() != null) {
+                e.setPath(e.getPath());
+            }
+            if (e != null && e.getRegexes() == null) {
+                e.setRegexes(new ArrayList<>());
+            }
+        }
     }
 
     public static CMakeMuxState getInstance(Project project) {
