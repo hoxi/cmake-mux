@@ -154,13 +154,15 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 .build();
 
         ApplicationManager.getApplication().invokeLater(() -> {
-            ActionUtil.invokeAction(
+            AnActionEvent event = AnActionEvent.createEvent(
                     action,
                     dataContext,
+                    action.getTemplatePresentation().clone(),
                     ActionPlaces.PROJECT_VIEW_POPUP,
-                    null,
-                    null
+                    ActionUiKind.POPUP,
+                    null // no InputEvent
             );
+            ActionUtil.performAction(action, event);
             CMakeMuxPresetHandler.enableMatchingPresets(project, java.util.List.of(".*"));
         });
 
