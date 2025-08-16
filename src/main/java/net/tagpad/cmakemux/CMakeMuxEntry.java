@@ -3,8 +3,11 @@ package net.tagpad.cmakemux;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.xmlb.annotations.Attribute;
 import com.intellij.util.xmlb.annotations.Tag;
+import com.intellij.util.xmlb.annotations.XCollection;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /** Simple model: nickname + absolute path to the CMakeLists.txt */
@@ -15,6 +18,9 @@ public class CMakeMuxEntry {
 
     @Attribute("path")
     private String path;
+
+    // Store default regexes for enabling CMake presets (per entry/target)
+    private List<String> regexes = new ArrayList<>();
 
     // Required for XML serialization
     public CMakeMuxEntry() {
@@ -39,6 +45,16 @@ public class CMakeMuxEntry {
 
     public void setPath(String path) {
         this.path = FileUtil.toSystemIndependentName(path);
+    }
+
+    @Tag("regexps")
+    @XCollection(style = XCollection.Style.v2, elementName = "re")
+    public List<String> getRegexes() {
+        return regexes;
+    }
+
+    public void setRegexes(List<String> regexes) {
+        this.regexes = (regexes == null) ? new ArrayList<>() : new ArrayList<>(regexes);
     }
 
     @Override

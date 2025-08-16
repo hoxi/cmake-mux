@@ -10,6 +10,8 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.ui.JBSplitter;
@@ -23,7 +25,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,23 +36,44 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     private final JBList<CMakeMuxEntry> list;
     private final DefaultListModel<CMakeMuxEntry> model;
 
+    // Details panel components
+    private JBLabel detailsTitleLabel;
+    private JBList<String> regexList;
+    private DefaultListModel<String> regexModel;
+
     public CMakeMuxPanel(@NotNull Project project) {
         super(new BorderLayout());
         this.project = project;
         this.model = new DefaultListModel<>();
         this.list = new JBList<>(model);
         this.list.setCellRenderer(new EntryRenderer(() -> CMakeMuxSelectionService.getInstance(project).getActivePath()));
-        refreshFromState();
 
-        // Listen for changes and refresh (provide the listener!)
+        // Build UI first to ensure detail components exist before any updates
+        JComponent toolbarPanel = ToolbarDecorator.createDecorator(list)
+                .setEditAction(button -> doRename())
+                .setRemoveAction(button -> doDelete())
+                .disableUpDownActions()
+                .createPanel();
+
+        JBSplitter splitter = new JBSplitter(false, 0.7f);
+        splitter.setFirstComponent(toolbarPanel);
+        splitter.setSecondComponent(buildDetailsPanel());
+        add(splitter, BorderLayout.CENTER);
+
+        // Now wire listeners
         project.getMessageBus()
                 .connect(this)
                 .subscribe(CMakeMuxEvents.TOPIC, (CMakeMuxEvents) this::onEntriesChanged);
 
-        // Listen for active selection changes to repaint icon state
         project.getMessageBus()
                 .connect(this)
                 .subscribe(CMakeMuxSelectionEvents.TOPIC, (CMakeMuxSelectionEvents) this::onActiveSelectionChanged);
+
+        list.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                updateDetailsForSelection();
+            }
+        });
 
         // Double-click to open target file
         list.addMouseListener(new MouseAdapter() {
@@ -63,24 +85,17 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             }
         });
 
-        // The decorator embeds the list and shows toolbar with Edit/Delete
-        JComponent toolbarPanel = ToolbarDecorator.createDecorator(list)
-                .setEditAction(button -> doRename())
-                .setRemoveAction(button -> doDelete())
-                .disableUpDownActions()
-                .createPanel();
-
-        JBSplitter splitter = new JBSplitter(false, 0.7f);
-        splitter.setFirstComponent(toolbarPanel);
-        splitter.setSecondComponent(buildDetailsPanel());
-
-        add(splitter, BorderLayout.CENTER);
+        // Populate model and initialize view
+        refreshFromState();
 
         // Best-effort: detect current active CMakeLists on panel load and set it
         initializeActiveSelectionIfMissing();
 
-        // Ensure current stored active path is reflected even if no event was received yet
+        // Reflect current stored active path even if no event was received yet
         onActiveSelectionChanged();
+
+        // Initialize details content for initial selection
+        updateDetailsForSelection();
     }
 
     private void onEntriesChanged() {
@@ -102,8 +117,89 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     private JComponent buildDetailsPanel() {
         JPanel p = new JPanel(new BorderLayout());
         p.setBorder(JBUI.Borders.empty(10));
-        p.add(new JBLabel("Tip: Double‑click an item to open its CMakeLists.txt."), BorderLayout.NORTH);
+
+        detailsTitleLabel = new JBLabel("Default Enable CMake Presets");
+        // Slightly smaller font
+        Font base = detailsTitleLabel.getFont();
+        detailsTitleLabel.setFont(base.deriveFont(Math.max(10f, base.getSize2D() - 1.0f)));
+        p.add(detailsTitleLabel, BorderLayout.NORTH);
+
+        regexModel = new DefaultListModel<>();
+        regexList = new JBList<>(regexModel);
+        regexList.setVisibleRowCount(8);
+
+        // Toolbar for regex list: + (add), pencil (edit), - (remove)
+        ToolbarDecorator decorator = ToolbarDecorator.createDecorator(regexList)
+                .setAddAction(e -> addRegex())
+                .setEditAction(e -> editRegex())
+                .setRemoveAction(e -> removeRegex())
+                .disableUpDownActions();
+
+        p.add(decorator.createPanel(), BorderLayout.CENTER);
         return p;
+    }
+
+    private void updateDetailsForSelection() {
+        if (detailsTitleLabel == null || regexModel == null) return; // UI not ready
+        CMakeMuxEntry sel = list.getSelectedValue();
+        String targetLabel = sel != null ? sel.getNickname() : "(none)";
+        detailsTitleLabel.setText("Default Enable CMake Presets for " + targetLabel);
+
+        regexModel.clear();
+        if (sel != null) {
+            List<String> regs = sel.getRegexes();
+            if (regs != null) {
+                for (String r : regs) regexModel.addElement(r);
+            }
+        }
+    }
+
+    private void addRegex() {
+        CMakeMuxEntry sel = list.getSelectedValue();
+        if (sel == null) return;
+        String input = Messages.showInputDialog(project, "Enter regex to enable presets:", "Add Preset Regex", Messages.getQuestionIcon());
+        if (input == null) return;
+        String trimmed = input.trim();
+        if (trimmed.isEmpty()) return;
+
+        List<String> regs = new ArrayList<>(sel.getRegexes());
+        regs.add(trimmed);
+        sel.setRegexes(regs);
+        CMakeMuxService.getInstance(project).addOrReplace(sel);
+
+        regexModel.addElement(trimmed);
+    }
+
+    private void editRegex() {
+        CMakeMuxEntry sel = list.getSelectedValue();
+        int idx = regexList.getSelectedIndex();
+        if (sel == null || idx < 0) return;
+
+        String current = regexModel.get(idx);
+        String input = Messages.showInputDialog(project, "Edit regex:", "Edit Preset Regex", Messages.getQuestionIcon(), current, null);
+        if (input == null) return;
+        String trimmed = input.trim();
+        if (trimmed.isEmpty()) return;
+
+        regexModel.set(idx, trimmed);
+
+        List<String> regs = new ArrayList<>(sel.getRegexes());
+        regs.set(idx, trimmed);
+        sel.setRegexes(regs);
+        CMakeMuxService.getInstance(project).addOrReplace(sel);
+    }
+
+    private void removeRegex() {
+        CMakeMuxEntry sel = list.getSelectedValue();
+        int idx = regexList.getSelectedIndex();
+        if (sel == null || idx < 0) return;
+
+        regexModel.remove(idx);
+
+        List<String> regs = new ArrayList<>(sel.getRegexes());
+        regs.remove(idx);
+        sel.setRegexes(regs);
+        CMakeMuxService.getInstance(project).addOrReplace(sel);
     }
 
     private void refreshFromState() {
@@ -113,6 +209,8 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         if (!model.isEmpty() && list.getSelectedIndex() == -1) {
             list.setSelectedIndex(0); // enables Edit/Delete right away
         }
+        // Keep details in sync after a refresh
+        updateDetailsForSelection();
     }
 
     private void doRename() {
@@ -124,6 +222,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         sel.setNickname(newNick.trim());
         CMakeMuxService.getInstance(project).addOrReplace(sel);
         list.repaint();
+        updateDetailsForSelection();
     }
 
     private void doDelete() {
@@ -134,12 +233,13 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         if (res == Messages.YES) {
             CMakeMuxService.getInstance(project).removeByPath(sel.getPath());
             model.removeElement(sel);
+            updateDetailsForSelection();
         }
     }
 
     private void openFile(String path) {
-        String si = com.intellij.openapi.util.io.FileUtil.toSystemIndependentName(path);
-        String url = com.intellij.openapi.vfs.VfsUtilCore.pathToUrl(si);
+        String si = FileUtil.toSystemIndependentName(path);
+        String url = VfsUtilCore.pathToUrl(si);
         VirtualFile vf = VirtualFileManager.getInstance().findFileByUrl(url);
         if (vf != null) {
             FileEditorManager.getInstance(project).openFile(vf, true);
@@ -168,13 +268,10 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
 
                 String activePath = activePathSupplier.get();
                 boolean isActive = activePath != null
-                        && com.intellij.openapi.util.io.FileUtil.pathsEqual(activePath, e.getPath());
+                        && FileUtil.pathsEqual(activePath, e.getPath());
 
-                // Prepend the "debug current frame" arrow icon when active; otherwise no icon
                 Icon icon = isActive ? AllIcons.Debugger.NextStatement : null;
                 setIcon(icon);
-
-                // Keep text weight normal; icon indicates the active one
                 setFont(getFont().deriveFont(Font.PLAIN));
             }
             return this;
@@ -214,13 +311,12 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         });
     }
 
-    // Best-effort reflective detection of current CMakeLists when the panel loads
+    // Best-effort detection of current CMakeLists when the panel loads
     private void initializeActiveSelectionIfMissing() {
         if (CMakeMuxSelectionService.getInstance(project).getActivePath() != null) return;
 
         ApplicationManager.getApplication().invokeLater(() -> {
             try {
-                // Use the companion's static getter directly
                 com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspace ws =
                         com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspace.getInstance(project);
 
@@ -236,4 +332,5 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             }
         });
     }
+
 }
