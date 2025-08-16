@@ -1,5 +1,6 @@
 package net.tagpad.cmakemux;
 
+import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.xmlb.annotations.Attribute;
 import com.intellij.util.xmlb.annotations.Tag;
 import org.jetbrains.annotations.Nullable;
@@ -21,7 +22,7 @@ public class CMakeMuxEntry {
 
     public CMakeMuxEntry(String nickname, String path) {
         this.nickname = nickname;
-        this.path = path;
+        this.path = FileUtil.toSystemIndependentName(path);
     }
 
     public String getNickname() {
@@ -37,7 +38,7 @@ public class CMakeMuxEntry {
     }
 
     public void setPath(String path) {
-        this.path = path;
+        this.path = FileUtil.toSystemIndependentName(path);
     }
 
     @Override

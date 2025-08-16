@@ -23,7 +23,6 @@ public final class CMakeMuxToolWindowFactory implements ToolWindowFactory, DumbA
 
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
-        // Ensure stripe button isn’t hidden in dumb mode
         toolWindow.setAvailable(true, null);
 
         CMakeMuxPanel panel = new CMakeMuxPanel(project);

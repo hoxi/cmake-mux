@@ -1,10 +1,12 @@
 package net.tagpad.cmakemux;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.actionSystem.ex.ActionUtil;
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
@@ -21,11 +23,14 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
 /** UI for the tool window: list with rename/delete and open on double-click. */
 public class CMakeMuxPanel extends JPanel implements Disposable {
+    private static final Logger LOG = Logger.getInstance(CMakeMuxPanel.class);
+
     private final Project project;
     private final JBList<CMakeMuxEntry> list;
     private final DefaultListModel<CMakeMuxEntry> model;
@@ -43,7 +48,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 .connect(this)
                 .subscribe(CMakeMuxEvents.TOPIC, (CMakeMuxEvents) this::onEntriesChanged);
 
-        // Listen for active selection changes to repaint bold state
+        // Listen for active selection changes to repaint icon state
         project.getMessageBus()
                 .connect(this)
                 .subscribe(CMakeMuxSelectionEvents.TOPIC, (CMakeMuxSelectionEvents) this::onActiveSelectionChanged);
@@ -70,6 +75,12 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         splitter.setSecondComponent(buildDetailsPanel());
 
         add(splitter, BorderLayout.CENTER);
+
+        // Best-effort: detect current active CMakeLists on panel load and set it
+        initializeActiveSelectionIfMissing();
+
+        // Ensure current stored active path is reflected even if no event was received yet
+        onActiveSelectionChanged();
     }
 
     private void onEntriesChanged() {
@@ -127,7 +138,9 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     }
 
     private void openFile(String path) {
-        VirtualFile vf = VirtualFileManager.getInstance().findFileByUrl("file://" + path);
+        String si = com.intellij.openapi.util.io.FileUtil.toSystemIndependentName(path);
+        String url = com.intellij.openapi.vfs.VfsUtilCore.pathToUrl(si);
+        VirtualFile vf = VirtualFileManager.getInstance().findFileByUrl(url);
         if (vf != null) {
             FileEditorManager.getInstance(project).openFile(vf, true);
         } else {
@@ -154,8 +167,15 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 setBorder(JBUI.Borders.empty(2, 6));
 
                 String activePath = activePathSupplier.get();
-                boolean isActive = activePath != null && activePath.equals(e.getPath());
-                setFont(getFont().deriveFont(isActive ? Font.BOLD : Font.PLAIN));
+                boolean isActive = activePath != null
+                        && com.intellij.openapi.util.io.FileUtil.pathsEqual(activePath, e.getPath());
+
+                // Prepend the "debug current frame" arrow icon when active; otherwise no icon
+                Icon icon = isActive ? AllIcons.Debugger.NextStatement : null;
+                setIcon(icon);
+
+                // Keep text weight normal; icon indicates the active one
+                setFont(getFont().deriveFont(Font.PLAIN));
             }
             return this;
         }
@@ -192,7 +212,28 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
 
             CMakeMuxPresetHandler.enableMatchingPresets(project, java.util.List.of(".*"));
         });
-
     }
 
+    // Best-effort reflective detection of current CMakeLists when the panel loads
+    private void initializeActiveSelectionIfMissing() {
+        if (CMakeMuxSelectionService.getInstance(project).getActivePath() != null) return;
+
+        ApplicationManager.getApplication().invokeLater(() -> {
+            try {
+                // Use the companion's static getter directly
+                com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspace ws =
+                        com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspace.getInstance(project);
+
+                java.io.File modelProjectDir = ws.getModelProjectDir();
+                if (modelProjectDir != null) {
+                    java.io.File f = new java.io.File(modelProjectDir, "CMakeLists.txt");
+                    if (f.isFile()) {
+                        CMakeMuxSelectionService.getInstance(project).setActivePath(f.getAbsolutePath());
+                    }
+                }
+            } catch (Throwable t) {
+                LOG.debug("[CMakeMux] Initial CMakeLists detection failed (best-effort): " + t.getMessage(), t);
+            }
+        });
+    }
 }
