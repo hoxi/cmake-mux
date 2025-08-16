@@ -116,13 +116,18 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
 
     private JComponent buildDetailsPanel() {
         JPanel p = new JPanel(new BorderLayout());
-        p.setBorder(JBUI.Borders.empty(10));
+        // Reduce outer padding (was 10)
+        p.setBorder(JBUI.Borders.empty(6));
 
         detailsTitleLabel = new JBLabel("Default Enable CMake Presets");
         // Slightly smaller font
         Font base = detailsTitleLabel.getFont();
         detailsTitleLabel.setFont(base.deriveFont(Math.max(10f, base.getSize2D() - 1.0f)));
-        p.add(detailsTitleLabel, BorderLayout.NORTH);
+        // Add a small bottom gap under the title
+        JPanel titleWrap = new JPanel(new BorderLayout());
+        titleWrap.setBorder(JBUI.Borders.empty());
+        titleWrap.add(detailsTitleLabel, BorderLayout.NORTH);
+        p.add(titleWrap, BorderLayout.NORTH);
 
         regexModel = new DefaultListModel<>();
         regexList = new JBList<>(regexModel);
@@ -135,7 +140,10 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 .setRemoveAction(e -> removeRegex())
                 .disableUpDownActions();
 
-        p.add(decorator.createPanel(), BorderLayout.CENTER);
+        JComponent decoratorPanel = decorator.createPanel();
+        decoratorPanel.setBorder(JBUI.Borders.empty());
+
+        p.add(decoratorPanel, BorderLayout.CENTER);
         return p;
     }
 
@@ -261,9 +269,9 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            if (value instanceof CMakeMuxEntry) {
-                CMakeMuxEntry e = (CMakeMuxEntry) value;
-                setText(e.getNickname() + "  —  " + e.getPath());
+            if (value instanceof CMakeMuxEntry e) {
+                setText(e.toString());
+                setToolTipText(e.getPath());
                 setBorder(JBUI.Borders.empty(2, 6));
 
                 String activePath = activePathSupplier.get();
