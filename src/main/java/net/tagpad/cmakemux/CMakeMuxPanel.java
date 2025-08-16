@@ -52,7 +52,8 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         JComponent toolbarPanel = ToolbarDecorator.createDecorator(list)
                 .setEditAction(button -> doRename())
                 .setRemoveAction(button -> doDelete())
-                .disableUpDownActions()
+                .setMoveUpAction(button -> moveSelected(-1))
+                .setMoveDownAction(button -> moveSelected(1))
                 .createPanel();
 
         JBSplitter splitter = new JBSplitter(false, 0.7f);
@@ -254,6 +255,38 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         } else {
             Messages.showWarningDialog(project, "Cannot locate file:\n" + path, "Open File");
         }
+    }
+
+    // Move currently selected entry up/down and persist the new order
+    private void moveSelected(int delta) {
+        int idx = list.getSelectedIndex();
+        if (idx < 0) return;
+        int target = idx + delta;
+        if (target < 0 || target >= model.size()) return;
+
+        // Swap in the UI model
+        CMakeMuxEntry a = model.get(idx);
+        CMakeMuxEntry b = model.get(target);
+        model.set(idx, b);
+        model.set(target, a);
+
+        // Keep selection with the moved item and visible
+        list.setSelectedIndex(target);
+        list.ensureIndexIsVisible(target);
+        list.requestFocusInWindow();
+
+        // Persist new order without triggering a full refresh
+        List<CMakeMuxEntry> newOrder = new ArrayList<>();
+        for (int i = 0; i < model.size(); i++) newOrder.add(model.get(i));
+
+        ApplicationManager.getApplication().runWriteAction(() -> {
+            List<CMakeMuxEntry> stateList = CMakeMuxState.getInstance(project).getEntries();
+            stateList.clear();
+            stateList.addAll(newOrder);
+        });
+
+        // A light repaint is enough; no need to broadcast entriesChanged()
+        list.repaint();
     }
 
     @Override
