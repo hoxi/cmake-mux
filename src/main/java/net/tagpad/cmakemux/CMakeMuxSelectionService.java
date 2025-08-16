@@ -1,5 +1,6 @@
 package net.tagpad.cmakemux;
 
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.actionSystem.ex.AnActionListener;
 import com.intellij.openapi.components.Service;
@@ -9,21 +10,20 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @Service(Service.Level.PROJECT)
-public final class CMakeMuxSelectionService {
+public final class CMakeMuxSelectionService implements Disposable {
     private final Project project;
     private volatile @Nullable String activePath;
 
     public CMakeMuxSelectionService(Project project) {
         this.project = project;
 
-        // Subscribe via MessageBus, scoped to the project
-        project.getMessageBus().connect(project).subscribe(AnActionListener.TOPIC, new AnActionListener() {
-
+        // Use this service instance as the parent Disposable (not the project)
+        var connection = project.getMessageBus().connect(this);
+        connection.subscribe(AnActionListener.TOPIC, new AnActionListener() {
             @Override
             public void afterActionPerformed(@NotNull AnAction action,
                                              @NotNull AnActionEvent event,
                                              @NotNull AnActionResult result) {
-                // Only proceed if the action actually succeeded
                 if (!result.isPerformed()) return;
 
                 String id = ActionManager.getInstance().getId(action);
@@ -53,5 +53,10 @@ public final class CMakeMuxSelectionService {
         if (path != null && path.equals(activePath)) return;
         this.activePath = path;
         project.getMessageBus().syncPublisher(CMakeMuxSelectionEvents.TOPIC).activeSelectionChanged();
+    }
+
+    @Override
+    public void dispose() {
+        // No-op; connection is disposed automatically because connect(this) was used
     }
 }
