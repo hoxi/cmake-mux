@@ -14,7 +14,9 @@ import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
+import com.intellij.ui.JBColor;
 import com.intellij.ui.JBSplitter;
+import com.intellij.ui.SideBorder;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBList;
@@ -69,6 +71,8 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         this.model = new DefaultListModel<>();
         this.list = new JBList<>(model);
         this.list.setCellRenderer(new EntryRenderer(() -> CMakeMuxSelectionService.getInstance(project).getActivePath()));
+        setBorder(JBUI.Borders.empty());
+        list.setBorder(JBUI.Borders.empty());
 
         // Build UI first to ensure detail components exist before any updates
         JComponent toolbarPanel = ToolbarDecorator.createDecorator(list)
@@ -77,8 +81,10 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 .setMoveUpAction(button -> moveEntries(-1))
                 .setMoveDownAction(button -> moveEntries(1))
                 .createPanel();
+        toolbarPanel.setBorder(JBUI.Borders.empty());
 
         JBSplitter splitter = new JBSplitter(false, 0.7f);
+        splitter.setBorder(JBUI.Borders.empty());
         splitter.setFirstComponent(toolbarPanel);
         splitter.setSecondComponent(buildDetailsPanel());
         add(splitter, BorderLayout.CENTER);
@@ -139,14 +145,15 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
 
     private JComponent buildDetailsPanel() {
         JPanel p = new JPanel(new BorderLayout());
-        // Reduce outer padding (was 10)
-        p.setBorder(JBUI.Borders.empty(6));
+        // Left-side separator line between the main list and regex panel + minimal inner padding
+        p.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                new SideBorder(JBColor.border(), SideBorder.LEFT),
+                JBUI.Borders.empty(6)
+        ));
 
         detailsTitleLabel = new JBLabel("Default Enable CMake Presets");
-        // Slightly smaller font
         Font base = detailsTitleLabel.getFont();
         detailsTitleLabel.setFont(base.deriveFont(Math.max(10f, base.getSize2D() - 1.0f)));
-        // Add a small bottom gap under the title
         JPanel titleWrap = new JPanel(new BorderLayout());
         titleWrap.setBorder(JBUI.Borders.empty());
         titleWrap.add(detailsTitleLabel, BorderLayout.NORTH);
@@ -156,7 +163,6 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         regexList = new JBList<>(regexModel);
         regexList.setVisibleRowCount(8);
 
-        // Toolbar for regex list: + (add), pencil (edit), - (remove), and move up/down
         ToolbarDecorator decorator = ToolbarDecorator.createDecorator(regexList)
                 .setAddAction(e -> addRegex())
                 .setEditAction(e -> editRegex())
