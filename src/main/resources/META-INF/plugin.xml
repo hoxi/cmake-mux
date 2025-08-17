@@ -6,10 +6,8 @@
     <name>CMake-Mux</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://www.yourcompany.com">YourCompany</vendor>
+    <vendor url="https://www.tagpad.net">Magnus Wållberg</vendor>
 
-    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
-         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
     <description><![CDATA[
         Enter short description for your plugin here.<br>
         <em>most HTML tags may be used</em>
@@ -17,11 +15,9 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.clion</depends>
+    <depends>com.intellij.modules.clion.cmake</depends>
 
-    <!-- Extension points defined by the plugin.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Tool window registration -->
         <toolWindow id="CMake Mux"
                     anchor="left"
                     secondary="true"
@@ -33,9 +29,10 @@
     <actions>
         <action id="net.tagpad.cmakemux.AddToCMakeMuxAction"
                 class="net.tagpad.cmakemux.AddToCMakeMuxAction"
-                text="Add to CMake Mux"
-                description="Add this CMakeLists.txt to the CMake Mux list">
-            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+                text="Pin to CMake Mux"
+                icon="AllIcons.Actions.AddMulticaret"
+                description="Pin this CMakeLists.txt to the CMake Mux list">
+            <add-to-group group-id="CMake.ProjectViewMenu" anchor="after" relative-to-action="CMake.GeneralFileActionsGroup"/>
         </action>
     </actions>
 </idea-plugin>

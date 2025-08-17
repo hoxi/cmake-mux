@@ -30,8 +30,8 @@ public class AddToCMakeMuxAction extends AnAction implements DumbAware {
 
         String defaultNick = file.getParent() != null ? file.getParent().getName() : "CMakeLists";
         String nickname = Messages.showInputDialog(project,
-                "Enter a nickname for this CMakeLists.txt:",
-                "Add to CMake Mux",
+                "Enter a name for this project CMakeLists.txt:",
+                "Pin to CMake Mux",
                 Messages.getQuestionIcon(),
                 defaultNick,
                 null);
