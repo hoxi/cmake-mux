@@ -44,8 +44,8 @@ public class CMakeMuxState implements PersistentStateComponent<CMakeMuxState.Sta
             if (e != null && e.getPath() != null) {
                 e.setPath(e.getPath());
             }
-            if (e != null && e.getRegexes() == null) {
-                e.setRegexes(new ArrayList<>());
+            if (e != null && e.getRegexps() == null) {
+                e.setRegexps(new ArrayList<>());
             }
         }
     }

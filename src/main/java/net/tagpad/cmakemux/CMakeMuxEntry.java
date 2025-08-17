@@ -19,8 +19,8 @@ public class CMakeMuxEntry {
     @Attribute("path")
     private String path;
 
-    // Store default regexes for enabling CMake presets (per entry/target)
-    private List<String> regexes = new ArrayList<>();
+    // Regxp for enabling CMake presets (per entry/target)
+    private List<String> regexps = new ArrayList<>();
 
     // Required for XML serialization
     public CMakeMuxEntry() {
@@ -49,12 +49,12 @@ public class CMakeMuxEntry {
 
     @Tag("regexps")
     @XCollection(style = XCollection.Style.v2, elementName = "re")
-    public List<String> getRegexes() {
-        return regexes;
+    public List<String> getRegexps() {
+        return regexps;
     }
 
-    public void setRegexes(List<String> regexes) {
-        this.regexes = (regexes == null) ? new ArrayList<>() : new ArrayList<>(regexes);
+    public void setRegexps(List<String> regexps) {
+        this.regexps = (regexps == null) ? new ArrayList<>() : new ArrayList<>(regexps);
     }
 
     @Override
@@ -65,8 +65,7 @@ public class CMakeMuxEntry {
     @Override
     public boolean equals(@Nullable Object o) {
         if (this == o) return true;
-        if (!(o instanceof CMakeMuxEntry)) return false;
-        CMakeMuxEntry that = (CMakeMuxEntry) o;
+        if (!(o instanceof CMakeMuxEntry that)) return false;
         return Objects.equals(path, that.path);
     }
 

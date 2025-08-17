@@ -30,7 +30,7 @@ public class AddToCMakeMuxAction extends AnAction implements DumbAware {
 
         String defaultNick = file.getParent() != null ? file.getParent().getName() : "CMakeLists";
         String nickname = Messages.showInputDialog(project,
-                "Enter a name for this project CMakeLists.txt:",
+                "Enter name for this project CMakeLists.txt:",
                 "Pin to CMake Mux",
                 Messages.getQuestionIcon(),
                 defaultNick,
@@ -38,8 +38,20 @@ public class AddToCMakeMuxAction extends AnAction implements DumbAware {
         if (nickname == null || nickname.trim().isEmpty()) {
             return; // cancelled or empty
         }
+        String nick = nickname.trim();
 
-        CMakeMuxEntry entry = new CMakeMuxEntry(nickname.trim(), file.getPath());
+        // Check for duplicate nickname
+        boolean nameExists = CMakeMuxService.getInstance(project).getEntries()
+                .stream()
+                .anyMatch(entry -> nick.equals(entry.getNickname()));
+        if (nameExists) {
+            Messages.showErrorDialog(project,
+                    "Named CMakeList.txt '" + nick + "' already exists",
+                    "Pin to CMake Mux");
+            return;
+        }
+
+        CMakeMuxEntry entry = new CMakeMuxEntry(nick, file.getPath());
         CMakeMuxService.getInstance(project).addOrReplace(entry);
 
         // Optionally, ensure the tool window shows up.
