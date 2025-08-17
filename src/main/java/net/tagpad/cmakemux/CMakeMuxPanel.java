@@ -52,8 +52,8 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         JComponent toolbarPanel = ToolbarDecorator.createDecorator(list)
                 .setEditAction(button -> doRename())
                 .setRemoveAction(button -> doDelete())
-                .setMoveUpAction(button -> moveSelected(-1))
-                .setMoveDownAction(button -> moveSelected(1))
+                .setMoveUpAction(button -> moveEntries(-1))
+                .setMoveDownAction(button -> moveEntries(1))
                 .createPanel();
 
         JBSplitter splitter = new JBSplitter(false, 0.7f);
@@ -134,12 +134,13 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         regexList = new JBList<>(regexModel);
         regexList.setVisibleRowCount(8);
 
-        // Toolbar for regex list: + (add), pencil (edit), - (remove)
+        // Toolbar for regex list: + (add), pencil (edit), - (remove), and move up/down
         ToolbarDecorator decorator = ToolbarDecorator.createDecorator(regexList)
                 .setAddAction(e -> addRegex())
                 .setEditAction(e -> editRegex())
                 .setRemoveAction(e -> removeRegex())
-                .disableUpDownActions();
+                .setMoveUpAction(e -> moveRegex(-1))
+                .setMoveDownAction(e -> moveRegex(1));
 
         JComponent decoratorPanel = decorator.createPanel();
         decoratorPanel.setBorder(JBUI.Borders.empty());
@@ -222,6 +223,52 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         updateDetailsForSelection();
     }
 
+    // Generic mover for any JBList/DefaultListModel pair with selection following and a persistence hook
+    private <T> void moveSelected(JList<T> jList, DefaultListModel<T> jModel, int delta, Runnable persist) {
+        int idx = jList.getSelectedIndex();
+        if (idx < 0) return;
+        int target = idx + delta;
+        if (target < 0 || target >= jModel.size()) return;
+
+        T a = jModel.get(idx);
+        T b = jModel.get(target);
+        jModel.set(idx, b);
+        jModel.set(target, a);
+
+        jList.setSelectedIndex(target);
+        jList.ensureIndexIsVisible(target);
+        jList.requestFocusInWindow();
+
+        if (persist != null) persist.run();
+        jList.repaint();
+    }
+
+    // Wrapper for moving entries in the main list and persisting to state
+    private void moveEntries(int delta) {
+        moveSelected(list, model, delta, () -> {
+            List<CMakeMuxEntry> newOrder = new ArrayList<>();
+            for (int i = 0; i < model.size(); i++) newOrder.add(model.get(i));
+            ApplicationManager.getApplication().runWriteAction(() -> {
+                List<CMakeMuxEntry> stateList = CMakeMuxState.getInstance(project).getEntries();
+                stateList.clear();
+                stateList.addAll(newOrder);
+            });
+        });
+    }
+
+    // Wrapper for moving regexes and persisting on the selected entry
+    private void moveRegex(int delta) {
+        moveSelected(regexList, regexModel, delta, () -> {
+            CMakeMuxEntry sel = list.getSelectedValue();
+            if (sel == null) return;
+
+            List<String> regs = new ArrayList<>();
+            for (int i = 0; i < regexModel.size(); i++) regs.add(regexModel.get(i));
+            sel.setRegexes(regs);
+            CMakeMuxService.getInstance(project).addOrReplace(sel);
+        });
+    }
+
     private void doRename() {
         CMakeMuxEntry sel = list.getSelectedValue();
         if (sel == null) return;
@@ -255,38 +302,6 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         } else {
             Messages.showWarningDialog(project, "Cannot locate file:\n" + path, "Open File");
         }
-    }
-
-    // Move currently selected entry up/down and persist the new order
-    private void moveSelected(int delta) {
-        int idx = list.getSelectedIndex();
-        if (idx < 0) return;
-        int target = idx + delta;
-        if (target < 0 || target >= model.size()) return;
-
-        // Swap in the UI model
-        CMakeMuxEntry a = model.get(idx);
-        CMakeMuxEntry b = model.get(target);
-        model.set(idx, b);
-        model.set(target, a);
-
-        // Keep selection with the moved item and visible
-        list.setSelectedIndex(target);
-        list.ensureIndexIsVisible(target);
-        list.requestFocusInWindow();
-
-        // Persist new order without triggering a full refresh
-        List<CMakeMuxEntry> newOrder = new ArrayList<>();
-        for (int i = 0; i < model.size(); i++) newOrder.add(model.get(i));
-
-        ApplicationManager.getApplication().runWriteAction(() -> {
-            List<CMakeMuxEntry> stateList = CMakeMuxState.getInstance(project).getEntries();
-            stateList.clear();
-            stateList.addAll(newOrder);
-        });
-
-        // A light repaint is enough; no need to broadcast entriesChanged()
-        list.repaint();
     }
 
     @Override
