@@ -41,6 +41,28 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     private JBList<String> regexList;
     private DefaultListModel<String> regexModel;
 
+    private List<String> snapshotRegexModel() {
+        List<String> regs = new ArrayList<>();
+        for (int i = 0; i < regexModel.size(); i++) regs.add(regexModel.get(i));
+        return regs;
+    }
+
+    private void persistRegexModelToState(CMakeMuxEntry selectedEntry) {
+        if (selectedEntry == null) return;
+        List<String> regs = snapshotRegexModel();
+        ApplicationManager.getApplication().runWriteAction(() -> {
+            List<CMakeMuxEntry> stateList = CMakeMuxState.getInstance(project).getEntries();
+            for (CMakeMuxEntry e : stateList) {
+                if (com.intellij.openapi.util.io.FileUtil.pathsEqual(e.getPath(), selectedEntry.getPath())) {
+                    e.setRegexes(regs);
+                    break;
+                }
+            }
+            // Keep the in-memory selected entry in sync
+            selectedEntry.setRegexes(regs);
+        });
+    }
+
     public CMakeMuxPanel(@NotNull Project project) {
         super(new BorderLayout());
         this.project = project;
@@ -172,12 +194,13 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         String trimmed = input.trim();
         if (trimmed.isEmpty()) return;
 
-        List<String> regs = new ArrayList<>(sel.getRegexes());
-        regs.add(trimmed);
-        sel.setRegexes(regs);
-        CMakeMuxService.getInstance(project).addOrReplace(sel);
-
+        // Update UI first so selection can be set to the new item
         regexModel.addElement(trimmed);
+        regexList.setSelectedIndex(regexModel.getSize() - 1);
+        regexList.ensureIndexIsVisible(regexModel.getSize() - 1);
+
+        // Persist without broadcasting entriesChanged
+        persistRegexModelToState(sel);
     }
 
     private void editRegex() {
@@ -191,12 +214,13 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         String trimmed = input.trim();
         if (trimmed.isEmpty()) return;
 
+        // Update UI first and keep selection
         regexModel.set(idx, trimmed);
+        regexList.setSelectedIndex(idx);
+        regexList.ensureIndexIsVisible(idx);
 
-        List<String> regs = new ArrayList<>(sel.getRegexes());
-        regs.set(idx, trimmed);
-        sel.setRegexes(regs);
-        CMakeMuxService.getInstance(project).addOrReplace(sel);
+        // Persist without broadcasting entriesChanged
+        persistRegexModelToState(sel);
     }
 
     private void removeRegex() {
@@ -204,21 +228,47 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         int idx = regexList.getSelectedIndex();
         if (sel == null || idx < 0) return;
 
+        // Update UI first and restore the closest selection
         regexModel.remove(idx);
+        if (!regexModel.isEmpty()) {
+            int next = Math.min(idx, regexModel.getSize() - 1);
+            regexList.setSelectedIndex(next);
+            regexList.ensureIndexIsVisible(next);
+        }
 
-        List<String> regs = new ArrayList<>(sel.getRegexes());
-        regs.remove(idx);
-        sel.setRegexes(regs);
-        CMakeMuxService.getInstance(project).addOrReplace(sel);
+        // Persist without broadcasting entriesChanged
+        persistRegexModelToState(sel);
     }
 
     private void refreshFromState() {
+        // Preserve current selection by path, so regex edits (which publish entriesChanged)
+        // won't move focus or change the selected CMakeMux entry.
+        String selectedPath = null;
+        CMakeMuxEntry current = list.getSelectedValue();
+        if (current != null) {
+            selectedPath = current.getPath();
+        }
+
         model.clear();
         List<CMakeMuxEntry> entries = new ArrayList<>(CMakeMuxService.getInstance(project).getEntries());
         for (CMakeMuxEntry e : entries) model.addElement(e);
-        if (!model.isEmpty() && list.getSelectedIndex() == -1) {
+
+        int toSelect = -1;
+        if (selectedPath != null) {
+            for (int i = 0; i < model.size(); i++) {
+                if (FileUtil.pathsEqual(model.get(i).getPath(), selectedPath)) {
+                    toSelect = i;
+                    break;
+                }
+            }
+        }
+        if (toSelect >= 0) {
+            list.setSelectedIndex(toSelect);
+            list.ensureIndexIsVisible(toSelect);
+        } else if (!model.isEmpty() && list.getSelectedIndex() == -1) {
             list.setSelectedIndex(0); // enables Edit/Delete right away
         }
+
         // Keep details in sync after a refresh
         updateDetailsForSelection();
     }
@@ -259,13 +309,9 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     // Wrapper for moving regexes and persisting on the selected entry
     private void moveRegex(int delta) {
         moveSelected(regexList, regexModel, delta, () -> {
+            // Selection is already moved by moveSelected; just persist the new order
             CMakeMuxEntry sel = list.getSelectedValue();
-            if (sel == null) return;
-
-            List<String> regs = new ArrayList<>();
-            for (int i = 0; i < regexModel.size(); i++) regs.add(regexModel.get(i));
-            sel.setRegexes(regs);
-            CMakeMuxService.getInstance(project).addOrReplace(sel);
+            persistRegexModelToState(sel);
         });
     }
 
