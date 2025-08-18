@@ -5,7 +5,7 @@
 
 ## Overview
 
-This plugin extends CLion’s CMake integration with:
+This plugin will extend the CLion CMake integration with:
 
 - a project tool window context action, “Pin to CMake Mux”, and
 - a popup action, “Select CMake Mux Project...”.
