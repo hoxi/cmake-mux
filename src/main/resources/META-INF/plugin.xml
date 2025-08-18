@@ -1,17 +1,7 @@
 <idea-plugin>
     <id>net.tagpad.cmakemux</id>
-
-    <!-- Public plugin name should be written in Title Case.
-         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
-    <name>CMake-Mux</name>
-
-    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <name>CMake Mux</name>
     <vendor url="https://www.tagpad.net">Magnus Wållberg</vendor>
-
-    <description><![CDATA[
-        Enter short description for your plugin here.<br>
-        <em>most HTML tags may be used</em>
-    ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.clion</depends>
