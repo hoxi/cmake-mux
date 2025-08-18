@@ -408,7 +408,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 boolean isActive = activePath != null
                         && FileUtil.pathsEqual(activePath, e.getPath());
 
-                Icon icon = isActive ? AllIcons.Debugger.NextStatement : null;
+                Icon icon = isActive ? AllIcons.Debugger.NextStatement : AllIcons.Actions.ProjectDirectory;
                 setIcon(icon);
                 setFont(getFont().deriveFont(Font.PLAIN));
             }
