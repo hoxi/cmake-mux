@@ -4,8 +4,6 @@ import com.intellij.icons.AllIcons;
 import com.intellij.ide.projectView.ProjectView;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
-import com.intellij.openapi.actionSystem.ex.ActionUtil;
-import com.intellij.openapi.actionSystem.impl.SimpleDataContext;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileEditorManager;
@@ -419,40 +417,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     }
 
     private void loadCMakeProject(@NotNull CMakeMuxEntry entry) {
-        String si = FileUtil.toSystemIndependentName(entry.getPath());
-        String url = VfsUtilCore.pathToUrl(si);
-        VirtualFile vf = VirtualFileManager.getInstance().findFileByUrl(url);
-        if (vf == null) {
-            Messages.showWarningDialog(project, "Cannot locate file:\n" + entry.getPath(), "Load CMake Project");
-            return;
-        }
-
-        AnAction action = ActionManager.getInstance().getAction("CMake.LoadCMakeProject");
-
-        DataContext dataContext = SimpleDataContext.builder()
-                .add(CommonDataKeys.PROJECT, project)
-                .add(CommonDataKeys.VIRTUAL_FILE, vf)
-                .add(CommonDataKeys.VIRTUAL_FILE_ARRAY, new VirtualFile[]{vf})
-                .build();
-
-        ApplicationManager.getApplication().invokeLater(() -> {
-            AnActionEvent event = AnActionEvent.createEvent(
-                    action,
-                    dataContext,
-                    action.getTemplatePresentation().clone(),
-                    ActionPlaces.PROJECT_VIEW_POPUP,
-                    ActionUiKind.POPUP,
-                    null // no InputEvent
-            );
-            ActionUtil.performAction(action, event);
-
-            // Mark as active (in case external processing is async)
-            CMakeMuxSelectionService.getInstance(project).setActivePath(vf.getPath());
-
-            // Send the entry's regexp list to preset enabler
-            List<String> regexps = entry.getRegexps();
-            CMakeMuxPresetHandler.enableMatchingPresets(project, regexps != null ? regexps : java.util.List.of());
-        });
+        CMakeMuxLoader.loadEntry(project, entry);
     }
 
     // Best-effort detection of current CMakeLists when the panel loads

@@ -24,5 +24,9 @@
                 description="Pin this CMakeLists.txt to the CMake Mux list">
             <add-to-group group-id="CMake.ProjectViewMenu" anchor="after" relative-to-action="CMake.GeneralFileActionsGroup"/>
         </action>
+        <action id="net.tagpad.cmakemux.CMakeMuxPopupAction"
+                class="net.tagpad.cmakemux.CMakeMuxPopupAction"
+                text="Select CMake Mux Project..."
+                description="Show a popup to load one of the top 9 CMake Mux projects"/>
     </actions>
 </idea-plugin>
