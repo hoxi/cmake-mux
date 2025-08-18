@@ -107,7 +107,11 @@ intellijPlatform {
             )
 
             val md = match.groupValues[1].trim()
-            org.jetbrains.changelog.markdownToHTML(md)
+            var html = org.jetbrains.changelog.markdownToHTML(md)
+            val sanitized = html
+                .replaceFirst(Regex("^\\s*<p>"), "")
+                .replaceFirst(Regex("</p>\\s*"), "")
+            sanitized
         })
     }
 }
