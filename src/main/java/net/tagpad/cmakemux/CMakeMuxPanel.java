@@ -83,7 +83,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 .setRemoveAction(button -> doDelete())
                 .setMoveUpAction(button -> moveEntries(-1))
                 .setMoveDownAction(button -> moveEntries(1))
-                .addExtraAction(new AnAction("Locate in Project View", "Locate named project CMakeLists.txt in the Project view", AllIcons.General.Locate) {
+                .addExtraAction(new AnAction("Locate in Project View", "Locate named project CMakeLists.txt in the Project view", AllIcons.Ide.External_link_arrow) {
                     @Override
                     public void actionPerformed(@NotNull AnActionEvent e) {
                         locateSelectedInProjectView();
@@ -119,7 +119,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             @Override public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
                     CMakeMuxEntry sel = list.getSelectedValue();
-                    if (sel != null) loadCMakeProject(sel.getPath());
+                    if (sel != null) loadCMakeProject(sel);
                 }
             }
         });
@@ -418,10 +418,12 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         }
     }
 
-    private void loadCMakeProject(@NotNull String path) {
-        VirtualFile vf = VirtualFileManager.getInstance().findFileByUrl("file://" + path);
+    private void loadCMakeProject(@NotNull CMakeMuxEntry entry) {
+        String si = FileUtil.toSystemIndependentName(entry.getPath());
+        String url = VfsUtilCore.pathToUrl(si);
+        VirtualFile vf = VirtualFileManager.getInstance().findFileByUrl(url);
         if (vf == null) {
-            Messages.showWarningDialog(project, "Cannot locate file:\n" + path, "Load CMake Project");
+            Messages.showWarningDialog(project, "Cannot locate file:\n" + entry.getPath(), "Load CMake Project");
             return;
         }
 
@@ -447,7 +449,9 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             // Mark as active (in case external processing is async)
             CMakeMuxSelectionService.getInstance(project).setActivePath(vf.getPath());
 
-            CMakeMuxPresetHandler.enableMatchingPresets(project, java.util.List.of(".*"));
+            // Send the entry's regexp list to preset enabler
+            List<String> regexps = entry.getRegexps();
+            CMakeMuxPresetHandler.enableMatchingPresets(project, regexps != null ? regexps : java.util.List.of());
         });
     }
 
