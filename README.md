@@ -50,8 +50,8 @@ first nine projects. Press a digit to load the corresponding project, or use the
 
 ![select_mux_proj.png](docs/select_mux_proj.png)
 
-[!NOTE] The plugin has no additional settings. It simply extends the CLion UI to streamline multi‑project CMake
-workflows.
+> [!NOTE]
+> The plugin has no additional settings. It simply extends the CLion UI to streamline multi‑project CMake workflows.
 
 ## Future
 
