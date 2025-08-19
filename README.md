@@ -5,25 +5,27 @@
 
 ## Overview
 
-This plugin will extend the CLion CMake integration with:
+This plugin enables quick CMake project switching in CLion via:
 
-- a project tool window context action, “Pin to CMake Mux”, and
-- a popup action, “Select CMake Mux Project...”.
+- Project tool window context action for any CMakeLists.txt, “Pin to CMake Mux”
+- New CMake mux panel to manage pinned projects
+- Popup action to easily switch projects via keyboard shortcuts
+- Automatic CMake preset enabling for selected projects
 
-Together, they make switching between multiple CMake projects fast and convenient. The plugin can also auto-enable
-selected CMake presets, since CLion (currently) loads imported presets disabled by default.
+All this enables switching between multiple CMake projects more convenient compared to the standard CLion experience.
 
 ## Background
 
 By default, CLion uses the `CMakeLists.txt` in your project root as the top-level CMake file. To switch, you can
-right‑click another `CMakeLists.txt` and choose “Load CMake Project.” If you switch frequently, repeating this step
-becomes tedious.
+right‑click another `CMakeLists.txt` and choose “Load CMake Project.” If you switch frequently, repeating this manual
+step becomes tedious.
 
 This plugin adds a shortlist of user-defined projects. Double‑click any item to load it (equivalent to “Load/Reload
 CMake Project”).
 
-Additionally, while CLion imports any CMake presets it finds, they start disabled. The plugin lets you define regular
-expressions per project shortcut to automatically enable matching presets after switching.
+Additionally, while CLion automatically imports any CMake presets it finds for a particular project location, they start
+disabled. The plugin lets you define regular expressions per project shortcut to automatically enable matching presets
+after switching.
 
 ## Details
 
@@ -46,14 +48,16 @@ regular expressions; presets whose names match are enabled automatically.
 ![main_mux_win.png](docs/main_mux_win.png)
 
 The action “Select CMake Mux Project...” can be bound to a custom keyboard shortcut. Invoking it shows a popup with the
-first nine projects. Press a digit to load the corresponding project, or use the arrow keys and Enter.
+first nine pinned projects. Press a digit to load the corresponding project, or use the arrow keys and Enter.
 
 ![select_mux_proj.png](docs/select_mux_proj.png)
 
 > [!NOTE]
-> The plugin has no additional settings. It simply extends the CLion UI to streamline multi‑project CMake workflows.
+> The plugin has no additional settings settings panel. It simply extends the CLion UI to streamline
+> multi‑project CMake workflows.
 
 ## Future
 
-This plugin exists solely to simplify switching CMake projects in CLion. If CLion adds similar functionality natively,
-this plugin will become unnecessary.
+The plugin will receive updates as long as CLion/Jetbrains continue to support the APIs and hooks used by the plugin.
+And if Jetbrains ever decides to add a similar features to CLion, this plugin will be obsolete. See
+this [feature request](https://youtrack.jetbrains.com/issue/CPP-1537) for more details.

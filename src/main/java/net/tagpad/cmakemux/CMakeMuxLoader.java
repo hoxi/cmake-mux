@@ -52,6 +52,13 @@ public final class CMakeMuxLoader {
 
             CMakeMuxSelectionService.getInstance(project).setActivePath(vf.getPath());
 
+            // Small delay to allow the action to run before we enable presets.
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                // Do nothing
+            }
+
             List<String> regexps = entry.getRegexps();
             CMakeMuxPresetHandler.enableMatchingPresets(project, regexps != null ? regexps : List.of());
         });
