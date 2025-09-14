@@ -1,9 +1,6 @@
 package net.tagpad.cmakemux;
 
-import com.intellij.openapi.components.PersistentStateComponent;
-import com.intellij.openapi.components.State;
-import com.intellij.openapi.components.Storage;
-import com.intellij.openapi.components.StoragePathMacros;
+import com.intellij.openapi.components.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.io.FileUtil;
 import org.jetbrains.annotations.NotNull;
@@ -12,10 +9,14 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Project-level persisted state. Saved to the workspace file. */
+/** Project-level persisted state.
+ *  Stored in a dedicated file (cmake-mux.xml). Legacy data is read from workspace.xml. */
 @State(
         name = "CMakeMuxState",
-        storages = { @Storage(StoragePathMacros.WORKSPACE_FILE) }
+        storages = {
+                @Storage(value = "cmake-mux.xml", roamingType = RoamingType.DISABLED),
+                @Storage(value = StoragePathMacros.WORKSPACE_FILE, deprecated = true)
+        }
 )
 public class CMakeMuxState implements PersistentStateComponent<CMakeMuxState.State> {
 

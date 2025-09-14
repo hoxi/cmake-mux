@@ -424,22 +424,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     private void initializeActiveSelectionIfMissing() {
         if (CMakeMuxSelectionService.getInstance(project).getActivePath() != null) return;
 
-        ApplicationManager.getApplication().invokeLater(() -> {
-            try {
-                com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspace ws =
-                        com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspace.getInstance(project);
-
-                java.io.File modelProjectDir = ws.getModelProjectDir();
-                if (modelProjectDir != null) {
-                    java.io.File f = new java.io.File(modelProjectDir, "CMakeLists.txt");
-                    if (f.isFile()) {
-                        CMakeMuxSelectionService.getInstance(project).setActivePath(f.getAbsolutePath());
-                    }
-                }
-            } catch (Throwable t) {
-                LOG.debug("[CMakeMux] Initial CMakeLists detection failed (best-effort): " + t.getMessage(), t);
-            }
-        });
+        // Perform a few delayed attempts since CMake workspace might initialize a bit later.
+        CMakeMuxActiveDetector.detectAndSetActiveBestEffort(project, 3, 200);
     }
-
 }
