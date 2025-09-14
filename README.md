@@ -47,10 +47,16 @@ regular expressions; presets whose names match are enabled automatically.
 
 ![main_mux_win.png](docs/main_mux_win.png)
 
-The action “Select CMake Mux Project...” can be bound to a custom keyboard shortcut. Invoking it shows a popup with the
-first nine pinned projects. Press a digit to load the corresponding project, or use the arrow keys and Enter.
+The action “Select CMake Mux Project...” can be bound to a custom keyboard shortcut.
 
 ![select_mux_proj.png](docs/select_mux_proj.png)
+
+Invoking the action/shortcut shows a popup with the first nine pinned projects. Press a digit to load the corresponding
+project, or use the arrow keys and Enter. Invoking the action/keyboard shortcut again will cycle through the next
+projects in the list.
+
+![popup.png](docs/popup.png)
+
 
 > [!NOTE]
 > The plugin has no additional settings settings panel. It simply extends the CLion UI to streamline

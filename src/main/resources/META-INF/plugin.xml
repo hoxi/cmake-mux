@@ -2,7 +2,6 @@
     <id>net.tagpad.cmakemux</id>
     <name>CMake Mux</name>
     <vendor url="https://www.tagpad.net">Magnus Wållberg</vendor>
-
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.clion</depends>
     <depends>com.intellij.modules.clion.cmake</depends>
@@ -14,6 +13,7 @@
                     factoryClass="net.tagpad.cmakemux.CMakeMuxToolWindowFactory"
                     icon="/iconMonoSimple.svg"/>
         <projectService serviceImplementation="net.tagpad.cmakemux.CMakeMuxState"/>
+        <postStartupActivity implementation="net.tagpad.cmakemux.CMakeMuxStartupActivity"/>
     </extensions>
 
     <actions>
