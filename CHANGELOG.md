@@ -1,3 +1,9 @@
+## [2025.3]
+
+### Additions
+
+- Updated dependencies 
+
 ## [2025.2.2]
 
 ### Fixes

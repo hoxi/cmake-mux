@@ -59,7 +59,7 @@ projects in the list.
 
 
 > [!NOTE]
-> The plugin has no additional settings settings panel. It simply extends the CLion UI to streamline
+> The plugin has no additional settings panel. It simply extends the CLion UI to streamline
 > multi‑project CMake workflows.
 
 ## Future
