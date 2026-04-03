@@ -3,8 +3,8 @@ fun properties(key: String) = project.findProperty(key).toString()
 
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.2.21"
-    id("org.jetbrains.intellij.platform") version "2.10.5"
+    id("org.jetbrains.kotlin.jvm") version "2.3.20"
+    id("org.jetbrains.intellij.platform") version "2.13.1"
     id("org.jetbrains.changelog") version "2.5.0"
 }
 
@@ -42,12 +42,10 @@ dependencies {
     intellijPlatform {
         val type: String = providers.gradleProperty("platformType").get()
         val version: String = providers.gradleProperty("platformVersion").get()
-        create(type, version)
-        testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
-
-        // Add necessary plugin dependencies for compilation here, example:
-        bundledPlugin("com.intellij.clion")
-        bundledPlugin("com.intellij.clion.cmake")
+        create(type, version) {
+            useInstaller = !version.endsWith("EAP-SNAPSHOT")
+        }
+        bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
     }
 }
 
@@ -116,10 +114,14 @@ intellijPlatform {
     }
 }
 
+gradle.taskGraph.whenReady {
+    val isRelease = hasTask(":signPlugin") || hasTask(":publishPlugin") || hasTask(":verifyPlugin")
+    tasks.named("buildSearchableOptions") { enabled = isRelease }
+    tasks.named("prepareJarSearchableOptions") { enabled = isRelease }
+    tasks.named("jarSearchableOptions") { enabled = isRelease }
+}
+
 tasks {
-    buildSearchableOptions {
-        enabled = false
-    }
     wrapper {
         gradleVersion = providers.gradleProperty("gradleVersion").get()
         distributionType = Wrapper.DistributionType.BIN
