@@ -1,3 +1,9 @@
+## [2026.1]
+
+### Additions
+
+- Updated dependencies
+
 ## [2025.3]
 
 ### Additions
