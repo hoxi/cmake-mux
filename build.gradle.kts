@@ -3,8 +3,8 @@ fun properties(key: String) = project.findProperty(key).toString()
 
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.3.20"
-    id("org.jetbrains.intellij.platform") version "2.13.1"
+    id("org.jetbrains.kotlin.jvm") version "2.4.0"
+    id("org.jetbrains.intellij.platform") version "2.16.0"
     id("org.jetbrains.changelog") version "2.5.0"
 }
 
@@ -45,7 +45,7 @@ dependencies {
         create(type, version) {
             useInstaller = !version.endsWith("EAP-SNAPSHOT")
         }
-        bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
+        bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',').filter { s -> s.isNotBlank() } })
     }
 }
 
