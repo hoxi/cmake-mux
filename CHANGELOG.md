@@ -1,3 +1,13 @@
+## [2026.1.1]
+
+### Fixes
+
+- CMake profiles were sometimes not loaded correctly due to timing. Fixed using event based triggers.
+
+### Additions
+
+- Updated dependencies
+
 ## [2026.1]
 
 ### Additions
