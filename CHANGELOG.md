@@ -1,3 +1,5 @@
+# Changelog
+
 ## [2026.1.1]
 
 ### Fixes
@@ -18,7 +20,7 @@
 
 ### Additions
 
-- Updated dependencies 
+- Updated dependencies
 
 ## [2025.2.2]
 
