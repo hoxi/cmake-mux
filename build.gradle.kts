@@ -35,7 +35,7 @@ changelog {
     groups.set(emptyList())
     // Configure to accept your version format (YYYY.N or YYYY.N.N)
     headerParserRegex.set("""(\d{4}\.\d+(?:\.\d+)?)""".toRegex())
-    keepUnreleasedSection.set(true)
+    keepUnreleasedSection.set(false)
 }
 
 dependencies {
