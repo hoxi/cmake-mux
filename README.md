@@ -46,7 +46,10 @@ The panel lists pinned projects and highlights the active one with a yellow arro
 the enabled presets are exactly the ones selected by its regular expressions. A gray arrow means that only the
 `CMakeLists.txt` is known to be loaded, e.g. when it was loaded with CLion's own “Load CMake Project” or the enabled
 presets were changed by hand. The arrows are updated whenever CLion loads a CMake project or the presets change, also
-at IDE startup, where CLion itself restores the last loaded project and presets. Double‑click any project to load it
+at IDE startup, where CLion itself restores the last loaded project and presets.
+
+While a pin is active (yellow arrow), its name is shown in the status bar at the bottom right. Clicking it opens the
+CMake Mux tool window. The status bar entry can be hidden via the status bar context menu. Double‑click any project to load it
 using CLion’s “Load CMake Project.” The “Enable CMake presets for <project>” panel lets you specify any number of
 regular expressions; presets whose names match are enabled automatically. For each regular expression you choose
 whether it is matched against the preset name, the display name, or both. Matching is case-insensitive and a match

@@ -15,6 +15,8 @@
         <projectService serviceImplementation="net.tagpad.cmakemux.CMakeMuxState"/>
         <postStartupActivity implementation="net.tagpad.cmakemux.CMakeMuxStartupActivity"/>
         <notificationGroup id="CMake Mux" displayType="BALLOON"/>
+        <statusBarWidgetFactory id="CMakeMuxStatus"
+                                implementation="net.tagpad.cmakemux.CMakeMuxStatusBarWidgetFactory"/>
     </extensions>
 
     <actions>
