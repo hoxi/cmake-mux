@@ -27,13 +27,13 @@ public final class CMakeMuxLoader {
             return;
         }
 
-        // Another entry for the CMakeLists.txt that is already loaded: no reload needed, just switch the presets.
-        // CLion reloads the affected CMake profiles itself when they are enabled/disabled.
-        // Loading the active entry again still reloads the project.
+        // An entry for the CMakeLists.txt that is already loaded, but with other presets enabled: no reload needed,
+        // just switch the presets. CLion reloads the affected CMake profiles itself when they are enabled/disabled.
+        // Loading the active entry (matching presets) again still reloads the project.
         CMakeMuxSelectionService selection = CMakeMuxSelectionService.getInstance(project);
         String activePath = selection.getActivePath();
         if (activePath != null && FileUtil.pathsEqual(activePath, vf.getPath())
-                && !entry.getId().equals(selection.getActiveEntryId())) {
+                && selection.getState(entry) != CMakeMuxSelectionService.ActiveState.ACTIVE) {
             ApplicationManager.getApplication().invokeLater(() -> {
                 selection.setActiveEntry(entry);
                 CMakeMuxPresetHandler.getInstance(project).switchPresets(presetFilters(entry));

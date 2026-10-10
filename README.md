@@ -42,7 +42,11 @@ The plugin also provides a panel where you can manage your pinned CMake projects
 
 ![mux_tool_win.png](docs/mux_tool_win.png)
 
-The panel lists pinned projects and highlights the active one with a yellow arrow. Double‑click any project to load it
+The panel lists pinned projects and highlights the active one with a yellow arrow: its `CMakeLists.txt` is loaded and
+the enabled presets are exactly the ones selected by its regular expressions. A gray arrow means that only the
+`CMakeLists.txt` is known to be loaded, e.g. when it was loaded with CLion's own “Load CMake Project” or the enabled
+presets were changed by hand. The arrows are updated whenever CLion loads a CMake project or the presets change, also
+at IDE startup, where CLion itself restores the last loaded project and presets. Double‑click any project to load it
 using CLion’s “Load CMake Project.” The “Enable CMake presets for <project>” panel lets you specify any number of
 regular expressions; presets whose names match are enabled automatically. For each regular expression you choose
 whether it is matched against the preset name, the display name, or both. Matching is case-insensitive and a match
@@ -50,7 +54,8 @@ anywhere in the name is enough, use `^...$` to match the whole name (e.g. `.*` e
 the preset named `debug`).
 
 Switching between two pins of the `CMakeLists.txt` that is already loaded does not reload the project. Instead, the
-presets matching the new pin are enabled and all other presets are disabled. Double-clicking the active pin reloads
+presets matching the new pin are enabled and all other presets are disabled. Loading a pin always enables exactly
+the presets selected by its regular expressions. Double-clicking the active pin reloads
 the project.
 
 ![main_mux_win.png](docs/main_mux_win.png)

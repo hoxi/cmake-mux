@@ -61,6 +61,8 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             // Keep the in-memory selected entry in sync
             selectedEntry.setPresetFilters(regs);
         });
+        // The regexps decide whether the entry is the active one
+        CMakeMuxSelectionService.getInstance(project).scheduleRefresh();
     }
 
     public CMakeMuxPanel(@NotNull Project project) {
@@ -68,7 +70,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         this.project = project;
         this.model = new DefaultListModel<>();
         this.list = new JBList<>(model);
-        this.list.setCellRenderer(new EntryRenderer(CMakeMuxSelectionService.getInstance(project)::isActive));
+        this.list.setCellRenderer(new EntryRenderer(CMakeMuxSelectionService.getInstance(project)::getState));
         setBorder(JBUI.Borders.empty());
         list.setBorder(JBUI.Borders.empty());
 
@@ -385,10 +387,10 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     public void dispose() { /* disposed with content */ }
 
     private static class EntryRenderer extends DefaultListCellRenderer {
-        private final java.util.function.Predicate<CMakeMuxEntry> isActive;
+        private final java.util.function.Function<CMakeMuxEntry, CMakeMuxSelectionService.ActiveState> stateOf;
 
-        EntryRenderer(java.util.function.Predicate<CMakeMuxEntry> isActive) {
-            this.isActive = isActive;
+        EntryRenderer(java.util.function.Function<CMakeMuxEntry, CMakeMuxSelectionService.ActiveState> stateOf) {
+            this.stateOf = stateOf;
         }
 
         @Override
@@ -396,11 +398,11 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
             if (value instanceof CMakeMuxEntry e) {
                 setText(e.toString());
-                setToolTipText(e.getPath());
+                CMakeMuxSelectionService.ActiveState state = stateOf.apply(e);
+                setToolTipText(CMakeMuxIcons.tooltip(e, state));
                 setBorder(JBUI.Borders.empty(2, 6));
 
-                Icon icon = isActive.test(e) ? AllIcons.Debugger.NextStatement : AllIcons.Actions.ProjectDirectory;
-                setIcon(icon);
+                setIcon(CMakeMuxIcons.forState(state));
                 setFont(getFont().deriveFont(Font.PLAIN));
             }
             return this;
@@ -432,6 +434,6 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         if (CMakeMuxSelectionService.getInstance(project).getActivePath() != null) return;
 
         // Perform a few delayed attempts since CMake workspace might initialize a bit later.
-        CMakeMuxActiveDetector.detectAndSetActiveBestEffort(project, 3, 200);
+        CMakeMuxActiveDetector.detectAndSetActiveBestEffort(project, 3, 500);
     }
 }
