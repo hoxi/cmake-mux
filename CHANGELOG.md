@@ -10,6 +10,9 @@
 
 ### Additions
 
+- The same CMakeLists.txt can be pinned several times, e.g. with different preset regexps. Switching between pins of
+  the loaded CMakeLists.txt only switches the enabled presets, without reloading the project.
+- The name field is marked invalid when pinning or renaming with a name that already exists.
 - Preset regexps can be matched against the preset name, display name or both. Existing regexps keep matching
   the name only.
 - Preset regexps are validated when added or edited.

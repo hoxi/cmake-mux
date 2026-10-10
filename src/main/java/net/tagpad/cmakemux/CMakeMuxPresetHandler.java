@@ -19,7 +19,9 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -80,6 +82,21 @@ public final class CMakeMuxPresetHandler implements Disposable {
         subscribeAndEnableOnChange(session, filters);
     }
 
+    /**
+     * Switch presets of the already loaded CMake project without reloading it: matching profiles are enabled
+     * and all other profiles imported from presets are disabled. Must be called on the EDT.
+     */
+    public void switchPresets(@NotNull List<CMakeMuxPresetFilter> presetFilters) {
+        cancelActiveSession();
+        List<CompiledFilter> filters = compile(presetFilters);
+        try {
+            int changed = enableMatchingImportedProfiles(filters, true);
+            LOG.info("[CMakeMux] Switched presets, changed " + changed + " CMake profiles.");
+        } catch (Throwable t) {
+            LOG.warn("[CMakeMux] Failed to switch presets", t);
+        }
+    }
+
     private List<CompiledFilter> compile(List<CMakeMuxPresetFilter> presetFilters) {
         List<CompiledFilter> filters = new ArrayList<>();
         List<String> invalid = new ArrayList<>();
@@ -100,11 +117,7 @@ public final class CMakeMuxPresetHandler implements Disposable {
             }
         }
         if (!invalid.isEmpty()) {
-            NotificationGroupManager.getInstance()
-                    .getNotificationGroup("CMake Mux")
-                    .createNotification("Invalid CMake preset regexp ignored",
-                            String.join(", ", invalid), NotificationType.WARNING)
-                    .notify(project);
+            notifyWarning("Invalid CMake preset regexp ignored", String.join(", ", invalid));
         }
         return filters;
     }
@@ -194,7 +207,7 @@ public final class CMakeMuxPresetHandler implements Disposable {
 
     private int enableSafely(List<CompiledFilter> filters) {
         try {
-            return enableMatchingImportedProfiles(filters);
+            return enableMatchingImportedProfiles(filters, false);
         } catch (Throwable t) {
             LOG.warn("[CMakeMux] Failed to enable matching presets", t);
             return 0;
@@ -202,7 +215,11 @@ public final class CMakeMuxPresetHandler implements Disposable {
     }
 
     @SuppressWarnings("unchecked")
-    private int enableMatchingImportedProfiles(List<CompiledFilter> filters) throws Exception {
+    /**
+     * Enables matching profiles. With {@code disableOtherPresets}, non-matching profiles imported from presets are
+     * disabled as well. Returns the number of profiles changed.
+     */
+    private int enableMatchingImportedProfiles(List<CompiledFilter> filters, boolean disableOtherPresets) throws Exception {
         // Resolve CLion’s CMake settings
         Class<?> settingsClass;
         try {
@@ -248,7 +265,15 @@ public final class CMakeMuxPresetHandler implements Disposable {
                 LOG.info("[CMakeMux] Found " + updatedProfiles.size() + " CMake profiles to check against "
                         + filters.size() + " patterns.");
 
-                enabled[0] = enableMatching(updatedProfiles, filters);
+                enabled[0] = applyFilters(updatedProfiles, filters, disableOtherPresets);
+                if (enabled[0] < 0) {
+                    // Never leave CLion without any enabled profile
+                    LOG.warn("[CMakeMux] No CMake profile would be enabled, keeping the current profiles.");
+                    ApplicationManager.getApplication().invokeLater(() -> notifyWarning(
+                            "No CMake profile matches the preset regexps",
+                            "The currently enabled CMake profiles are kept."), project.getDisposed());
+                    enabled[0] = 0;
+                }
                 // Only write back when something changed. This also avoids re-triggering ourselves
                 // through the profilesChanged event setProfiles() fires.
                 if (enabled[0] > 0) {
@@ -262,38 +287,68 @@ public final class CMakeMuxPresetHandler implements Disposable {
         return enabled[0];
     }
 
-    /** Enables matching profiles in place in {@code profiles}, returns the number of profiles enabled. */
-    private static int enableMatching(List<Object> profiles, List<CompiledFilter> filters) throws Exception {
-        int enabled = 0;
+    /**
+     * Enables matching profiles (and optionally disables non-matching preset profiles) in place in
+     * {@code profiles}. Returns the number of profiles changed, or -1 if no profile would be left enabled.
+     */
+    private static int applyFilters(List<Object> profiles, List<CompiledFilter> filters, boolean disableOtherPresets)
+            throws Exception {
+        // Plan the changes first, so nothing is touched if the result would be unusable
+        Map<Integer, Boolean> changes = new LinkedHashMap<>();
+        int enabledAfter = 0;
         for (int i = 0; i < profiles.size(); i++) {
             Object profile = profiles.get(i);
             if (profile == null) continue;
 
+            boolean current = Boolean.TRUE.equals(invokeBooleanGetter(profile, "getEnabled"));
             String name = invokeStringGetter(profile, "getName");
             String displayName = invokeStringGetter(profile, "getDisplayName");
-            if (!matchesAny(filters, name, displayName)) continue;
-
-            Boolean current = invokeBooleanGetter(profile, "getEnabled");
-            if (Boolean.TRUE.equals(current)) continue;
-
-            // Try withEnabled(boolean) first (Kotlin data-class copy pattern, 2026.1+),
-            // fall back to direct field set for older CLion versions.
-            Method withEnabled = findMethod(profile.getClass(), "withEnabled", boolean.class);
-            if (withEnabled != null) {
-                // 2026.1+: Profile is immutable, use withEnabled() copy method
-                profiles.set(i, withEnabled.invoke(profile, true));
-            } else {
-                // Legacy: mutate the field directly (pre-2026.1)
-                Field enabledField = findBooleanField(profile.getClass(), "enabled");
-                if (enabledField == null) {
-                    LOG.warn("[CMakeMux] Neither withEnabled() nor 'enabled' field found, bail out.");
-                    return enabled;
-                }
-                enabledField.set(profile, true);
+            boolean wanted = current;
+            if (matchesAny(filters, name, displayName)) {
+                wanted = true;
+            } else if (disableOtherPresets && Boolean.TRUE.equals(invokeBooleanGetter(profile, "getFromPreset"))) {
+                wanted = false;
             }
-            enabled++;
+            if (wanted != current) changes.put(i, wanted);
+            if (wanted) enabledAfter++;
         }
-        return enabled;
+        if (changes.isEmpty()) return 0;
+        if (enabledAfter == 0) return -1;
+
+        int changed = 0;
+        for (Map.Entry<Integer, Boolean> change : changes.entrySet()) {
+            Object updated = withEnabled(profiles.get(change.getKey()), change.getValue());
+            if (updated == null) {
+                LOG.warn("[CMakeMux] Neither withEnabled() nor 'enabled' field found, bail out.");
+                return changed;
+            }
+            profiles.set(change.getKey(), updated);
+            changed++;
+        }
+        return changed;
+    }
+
+    /** Returns the profile with the enabled flag set, or null if not supported. */
+    private static Object withEnabled(Object profile, boolean enabled) throws Exception {
+        // Try withEnabled(boolean) first (Kotlin data-class copy pattern, 2026.1+),
+        // fall back to direct field set for older CLion versions.
+        Method withEnabled = findMethod(profile.getClass(), "withEnabled", boolean.class);
+        if (withEnabled != null) {
+            // 2026.1+: Profile is immutable, use withEnabled() copy method
+            return withEnabled.invoke(profile, enabled);
+        }
+        // Legacy: mutate the field directly (pre-2026.1)
+        Field enabledField = findBooleanField(profile.getClass(), "enabled");
+        if (enabledField == null) return null;
+        enabledField.set(profile, enabled);
+        return profile;
+    }
+
+    private void notifyWarning(String title, String content) {
+        NotificationGroupManager.getInstance()
+                .getNotificationGroup("CMake Mux")
+                .createNotification(title, content, NotificationType.WARNING)
+                .notify(project);
     }
 
     @Override

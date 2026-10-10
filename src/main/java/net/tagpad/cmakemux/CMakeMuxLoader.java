@@ -27,6 +27,20 @@ public final class CMakeMuxLoader {
             return;
         }
 
+        // Another entry for the CMakeLists.txt that is already loaded: no reload needed, just switch the presets.
+        // CLion reloads the affected CMake profiles itself when they are enabled/disabled.
+        // Loading the active entry again still reloads the project.
+        CMakeMuxSelectionService selection = CMakeMuxSelectionService.getInstance(project);
+        String activePath = selection.getActivePath();
+        if (activePath != null && FileUtil.pathsEqual(activePath, vf.getPath())
+                && !entry.getId().equals(selection.getActiveEntryId())) {
+            ApplicationManager.getApplication().invokeLater(() -> {
+                selection.setActiveEntry(entry);
+                CMakeMuxPresetHandler.getInstance(project).switchPresets(presetFilters(entry));
+            }, project.getDisposed());
+            return;
+        }
+
         AnAction action = ActionManager.getInstance().getAction("CMake.LoadCMakeProject");
         if (action == null) {
             Messages.showWarningDialog(project, "Cannot find CLion action: CMake.LoadCMakeProject", "Load CMake Project");
@@ -50,11 +64,15 @@ public final class CMakeMuxLoader {
             );
             ActionUtil.performAction(action, event);
 
-            CMakeMuxSelectionService.getInstance(project).setActivePath(vf.getPath());
+            selection.setActiveEntry(entry);
 
             // The project load is asynchronous; the handler waits for the imported profiles
-            List<CMakeMuxPresetFilter> filters = entry.getPresetFilters();
-            CMakeMuxPresetHandler.getInstance(project).enableMatchingPresets(filters != null ? filters : List.of());
+            CMakeMuxPresetHandler.getInstance(project).enableMatchingPresets(presetFilters(entry));
         });
+    }
+
+    private static List<CMakeMuxPresetFilter> presetFilters(CMakeMuxEntry entry) {
+        List<CMakeMuxPresetFilter> filters = entry.getPresetFilters();
+        return filters != null ? filters : List.of();
     }
 }

@@ -56,13 +56,8 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         if (selectedEntry == null) return;
         List<CMakeMuxPresetFilter> regs = snapshotRegexModel();
         ApplicationManager.getApplication().runWriteAction(() -> {
-            List<CMakeMuxEntry> stateList = CMakeMuxState.getInstance(project).getEntries();
-            for (CMakeMuxEntry e : stateList) {
-                if (com.intellij.openapi.util.io.FileUtil.pathsEqual(e.getPath(), selectedEntry.getPath())) {
-                    e.setPresetFilters(regs);
-                    break;
-                }
-            }
+            CMakeMuxEntry e = CMakeMuxState.getInstance(project).findById(selectedEntry.getId());
+            if (e != null) e.setPresetFilters(regs);
             // Keep the in-memory selected entry in sync
             selectedEntry.setPresetFilters(regs);
         });
@@ -73,7 +68,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         this.project = project;
         this.model = new DefaultListModel<>();
         this.list = new JBList<>(model);
-        this.list.setCellRenderer(new EntryRenderer(() -> CMakeMuxSelectionService.getInstance(project).getActivePath()));
+        this.list.setCellRenderer(new EntryRenderer(CMakeMuxSelectionService.getInstance(project)::isActive));
         setBorder(JBUI.Borders.empty());
         list.setBorder(JBUI.Borders.empty());
 
@@ -277,12 +272,12 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     }
 
     private void refreshFromState() {
-        // Preserve current selection by path, so p edits (which publish entriesChanged)
+        // Preserve current selection by id, so p edits (which publish entriesChanged)
         // won't move focus or change the selected CMakeMux entry.
-        String selectedPath = null;
+        String selectedId = null;
         CMakeMuxEntry current = list.getSelectedValue();
         if (current != null) {
-            selectedPath = current.getPath();
+            selectedId = current.getId();
         }
 
         model.clear();
@@ -290,9 +285,9 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         for (CMakeMuxEntry e : entries) model.addElement(e);
 
         int toSelect = -1;
-        if (selectedPath != null) {
+        if (selectedId != null) {
             for (int i = 0; i < model.size(); i++) {
-                if (FileUtil.pathsEqual(model.get(i).getPath(), selectedPath)) {
+                if (selectedId.equals(model.get(i).getId())) {
                     toSelect = i;
                     break;
                 }
@@ -354,10 +349,10 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     private void doRename() {
         CMakeMuxEntry sel = list.getSelectedValue();
         if (sel == null) return;
-        String newNick = Messages.showInputDialog(project,
-                "New name:", "Rename Entry", Messages.getQuestionIcon(), sel.getNickname(), null);
-        if (newNick == null || newNick.trim().isEmpty()) return;
-        sel.setNickname(newNick.trim());
+        CMakeMuxNameDialog dialog = new CMakeMuxNameDialog(project, "Rename Entry", "New name:",
+                sel.getNickname() != null ? sel.getNickname() : "", sel.getId());
+        if (!dialog.showAndGet()) return;
+        sel.setNickname(dialog.getEntryName());
         CMakeMuxService.getInstance(project).addOrReplace(sel);
         list.repaint();
         updateDetailsForSelection();
@@ -369,7 +364,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         int res = Messages.showYesNoDialog(project,
                 "Remove '" + sel.getNickname() + "'?", "Delete Entry", Messages.getQuestionIcon());
         if (res == Messages.YES) {
-            CMakeMuxService.getInstance(project).removeByPath(sel.getPath());
+            CMakeMuxService.getInstance(project).removeById(sel.getId());
             model.removeElement(sel);
             updateDetailsForSelection();
         }
@@ -390,10 +385,10 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     public void dispose() { /* disposed with content */ }
 
     private static class EntryRenderer extends DefaultListCellRenderer {
-        private final java.util.function.Supplier<String> activePathSupplier;
+        private final java.util.function.Predicate<CMakeMuxEntry> isActive;
 
-        EntryRenderer(java.util.function.Supplier<String> activePathSupplier) {
-            this.activePathSupplier = activePathSupplier;
+        EntryRenderer(java.util.function.Predicate<CMakeMuxEntry> isActive) {
+            this.isActive = isActive;
         }
 
         @Override
@@ -404,11 +399,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 setToolTipText(e.getPath());
                 setBorder(JBUI.Borders.empty(2, 6));
 
-                String activePath = activePathSupplier.get();
-                boolean isActive = activePath != null
-                        && FileUtil.pathsEqual(activePath, e.getPath());
-
-                Icon icon = isActive ? AllIcons.Debugger.NextStatement : AllIcons.Actions.ProjectDirectory;
+                Icon icon = isActive.test(e) ? AllIcons.Debugger.NextStatement : AllIcons.Actions.ProjectDirectory;
                 setIcon(icon);
                 setFont(getFont().deriveFont(Font.PLAIN));
             }

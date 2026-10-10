@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -33,9 +34,13 @@ public final class CMakeMuxService {
         });
     }
 
-    public void removeByPath(@NotNull String path) {
+    public boolean isNicknameTaken(@NotNull String nickname, @Nullable String exceptId) {
+        return CMakeMuxState.getInstance(project).isNicknameTaken(nickname, exceptId);
+    }
+
+    public void removeById(@NotNull String id) {
         ApplicationManager.getApplication().runWriteAction(() -> {
-            CMakeMuxState.getInstance(project).removeByPath(path);
+            CMakeMuxState.getInstance(project).removeById(id);
             // Notify listeners on the UI thread
             ApplicationManager.getApplication().invokeLater(() ->
                     project.getMessageBus().syncPublisher(CMakeMuxEvents.TOPIC).entriesChanged()

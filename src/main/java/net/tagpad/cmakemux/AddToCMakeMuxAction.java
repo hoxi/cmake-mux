@@ -3,7 +3,6 @@ package net.tagpad.cmakemux;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,30 +27,15 @@ public class AddToCMakeMuxAction extends AnAction implements DumbAware {
         final VirtualFile file = e.getData(CommonDataKeys.VIRTUAL_FILE);
         if (project == null || file == null) return;
 
+        // The same CMakeLists.txt may be pinned several times (e.g. with different presets), names must be unique
         String defaultNick = file.getParent() != null ? file.getParent().getName() : "CMakeLists";
-        String nickname = Messages.showInputDialog(project,
-                "Enter name for this project CMakeLists.txt:",
-                "Pin to CMake Mux",
-                Messages.getQuestionIcon(),
-                defaultNick,
-                null);
-        if (nickname == null || nickname.trim().isEmpty()) {
-            return; // cancelled or empty
-        }
-        String nick = nickname.trim();
-
-        // Check for duplicate nickname
-        boolean nameExists = CMakeMuxService.getInstance(project).getEntries()
-                .stream()
-                .anyMatch(entry -> nick.equals(entry.getNickname()));
-        if (nameExists) {
-            Messages.showErrorDialog(project,
-                    "Named CMakeList.txt '" + nick + "' already exists",
-                    "Pin to CMake Mux");
-            return;
+        CMakeMuxNameDialog dialog = new CMakeMuxNameDialog(project, "Pin to CMake Mux",
+                "Enter name for this project CMakeLists.txt:", defaultNick, null);
+        if (!dialog.showAndGet()) {
+            return; // cancelled
         }
 
-        CMakeMuxEntry entry = new CMakeMuxEntry(nick, file.getPath());
+        CMakeMuxEntry entry = new CMakeMuxEntry(dialog.getEntryName(), file.getPath());
         CMakeMuxService.getInstance(project).addOrReplace(entry);
 
         // Optionally, ensure the tool window shows up.

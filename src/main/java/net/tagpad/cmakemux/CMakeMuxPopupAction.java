@@ -11,7 +11,6 @@ import com.intellij.openapi.ui.popup.JBPopupListener;
 import com.intellij.openapi.ui.popup.LightweightWindowEvent;
 import com.intellij.ui.popup.list.ListPopupImpl;
 import org.jetbrains.annotations.NotNull;
-import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.project.DumbAwareAction;
 
 import javax.swing.*;
@@ -44,7 +43,7 @@ public class CMakeMuxPopupAction extends AnAction implements DumbAware {
         int max = Math.min(9, entries.size());
         DefaultActionGroup group = new DefaultActionGroup();
 
-        String activePath = CMakeMuxSelectionService.getInstance(project).getActivePath();
+        CMakeMuxSelectionService selection = CMakeMuxSelectionService.getInstance(project);
 
         // Track the action that corresponds to the active entry to preselect it in the popup
         final AnAction[] activeActionRef = new AnAction[1];
@@ -56,7 +55,7 @@ public class CMakeMuxPopupAction extends AnAction implements DumbAware {
                     ? entry.getNickname()
                     : entry.getPath();
 
-            boolean isActive = activePath != null && FileUtil.pathsEqual(activePath, entry.getPath());
+            boolean isActive = selection.isActive(entry);
             Icon icon = isActive ? AllIcons.Debugger.NextStatement : AllIcons.Actions.ProjectDirectory;
 
             AnAction action = new AnAction(title, entry.getPath(), icon) {
@@ -66,7 +65,7 @@ public class CMakeMuxPopupAction extends AnAction implements DumbAware {
                 }
             };
             group.add(action);
-            if (isActive) activeActionRef[0] = action;
+            if (isActive && activeActionRef[0] == null) activeActionRef[0] = action;
         }
 
         ListPopup popup = JBPopupFactory.getInstance()
@@ -79,7 +78,7 @@ public class CMakeMuxPopupAction extends AnAction implements DumbAware {
                         true,   // autoDispose
                         null,
                         max,    // maxRowCount
-                        action -> action == activeActionRef[0] // preselect active
+                        action -> action == activeActionRef[0] // preselect active (first one if several)
                 );
 
         // Install the same shortcut inside the popup to cycle selection on repeated presses
