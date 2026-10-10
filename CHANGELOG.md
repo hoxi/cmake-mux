@@ -20,7 +20,8 @@
 - The name field is marked invalid when pinning or renaming with a name that already exists.
 - Preset regexps can be matched against the preset name, display name or both. Existing regexps keep matching
   the name only.
-- Preset regexps are validated when added or edited.
+- Preset regexps are validated when added or edited, and the dialog shows which presets of the loaded CMake project
+  they match.
 - Updated dependencies, requires CLion 2026.2 or later (JBR 25).
 
 ## [2026.1.1]

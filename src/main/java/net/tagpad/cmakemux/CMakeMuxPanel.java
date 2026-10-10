@@ -236,7 +236,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         CMakeMuxEntry sel = list.getSelectedValue();
         if (sel == null) return;
         CMakeMuxPresetFilterDialog dialog = new CMakeMuxPresetFilterDialog(project, "Add Preset Regexp",
-                new CMakeMuxPresetFilter("", true, true));
+                new CMakeMuxPresetFilter("", true, true), sel.getPath());
         if (!dialog.showAndGet()) return;
 
         // Update UI first so selection can be set to the new item
@@ -254,7 +254,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         if (sel == null || idx < 0) return;
 
         CMakeMuxPresetFilterDialog dialog = new CMakeMuxPresetFilterDialog(project, "Edit Preset Regexp",
-                regexpModel.get(idx));
+                regexpModel.get(idx), sel.getPath());
         if (!dialog.showAndGet()) return;
 
         // Update UI first and keep selection
