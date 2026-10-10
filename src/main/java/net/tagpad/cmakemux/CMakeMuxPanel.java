@@ -235,7 +235,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     private void addRegex() {
         CMakeMuxEntry sel = list.getSelectedValue();
         if (sel == null) return;
-        CMakeMuxPresetFilterDialog dialog = new CMakeMuxPresetFilterDialog(project, "Add Preset Regexp",
+        CMakeMuxPresetFilterDialog dialog = new CMakeMuxPresetFilterDialog(project, "Add Preset Regular Expression",
                 new CMakeMuxPresetFilter("", true, true), sel.getPath());
         if (!dialog.showAndGet()) return;
 
@@ -253,7 +253,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         int idx = regexpList.getSelectedIndex();
         if (sel == null || idx < 0) return;
 
-        CMakeMuxPresetFilterDialog dialog = new CMakeMuxPresetFilterDialog(project, "Edit Preset Regexp",
+        CMakeMuxPresetFilterDialog dialog = new CMakeMuxPresetFilterDialog(project, "Edit Preset Regular Expression",
                 regexpModel.get(idx), sel.getPath());
         if (!dialog.showAndGet()) return;
 
