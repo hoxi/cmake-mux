@@ -23,7 +23,9 @@ import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBList;
+import com.intellij.util.ui.JBFont;
 import com.intellij.util.ui.JBUI;
+import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -42,7 +44,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     private final DefaultListModel<CMakeMuxEntry> model;
 
     // Details panel components
-    private JBLabel detailsTitleLabel;
+    private JBLabel detailsNameLabel;
     private JBList<CMakeMuxPresetFilter> regexpList;
     private DefaultListModel<CMakeMuxPresetFilter> regexpModel;
 
@@ -180,12 +182,21 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 JBUI.Borders.empty(6)
         ));
 
-        detailsTitleLabel = new JBLabel("Enable CMake Presets");
-        Font base = detailsTitleLabel.getFont();
-        detailsTitleLabel.setFont(base.deriveFont(Math.max(10f, base.getSize2D() - 1.0f)));
+        // Two rows: a caption and the (emphasized) entry name. Both may shrink (the name is then truncated with
+        // "..." and shown in full in the tooltip), so a long name does not force a wider panel.
+        JBLabel caption = new JBLabel("Enable CMake presets for");
+        caption.setComponentStyle(UIUtil.ComponentStyle.SMALL);
+        caption.setFontColor(UIUtil.FontColor.BRIGHTER);
+        caption.setMinimumSize(new Dimension(0, caption.getPreferredSize().height));
+
+        detailsNameLabel = new JBLabel("(none)");
+        detailsNameLabel.setFont(JBFont.label().asBold());
+        detailsNameLabel.setMinimumSize(new Dimension(0, detailsNameLabel.getPreferredSize().height));
+
         JPanel titleWrap = new JPanel(new BorderLayout());
-        titleWrap.setBorder(JBUI.Borders.empty());
-        titleWrap.add(detailsTitleLabel, BorderLayout.NORTH);
+        titleWrap.setBorder(JBUI.Borders.emptyBottom(4));
+        titleWrap.add(caption, BorderLayout.NORTH);
+        titleWrap.add(detailsNameLabel, BorderLayout.SOUTH);
         p.add(titleWrap, BorderLayout.NORTH);
 
         regexpModel = new DefaultListModel<>();
@@ -218,10 +229,11 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     }
 
     private void updateDetailsForSelection() {
-        if (detailsTitleLabel == null || regexpModel == null) return; // UI not ready
+        if (detailsNameLabel == null || regexpModel == null) return; // UI not ready
         CMakeMuxEntry sel = list.getSelectedValue();
         String targetLabel = sel != null ? sel.getNickname() : "(none)";
-        detailsTitleLabel.setText("Enable CMake Presets for " + targetLabel);
+        detailsNameLabel.setText(targetLabel);
+        detailsNameLabel.setToolTipText(sel != null ? sel.getNickname() + " - " + sel.getPath() : null);
 
         regexpModel.clear();
         if (sel != null) {
