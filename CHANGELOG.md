@@ -7,11 +7,15 @@
 - An invalid preset regexp no longer prevents all other regexps from enabling presets. Invalid regexps are reported.
 - Preset regexps of a previously loaded project are no longer applied when quickly switching to another project.
 - More robust enabling of presets when CMake loads profiles slowly or in several steps.
+- Detection of the loaded CMakeLists.txt at startup now retries with a real delay and also follows CMake reloads.
 
 ### Additions
 
 - The same CMakeLists.txt can be pinned several times, e.g. with different preset regexps. Switching between pins of
   the loaded CMakeLists.txt only switches the enabled presets, without reloading the project.
+- The active pin is shown with a yellow arrow when both its CMakeLists.txt and its presets are loaded, and with a
+  gray arrow when only the CMakeLists.txt matches (e.g. loaded with CLion's "Load CMake Project").
+- Loading a pin enables exactly the presets selected by its regexps, other presets are disabled.
 - The name field is marked invalid when pinning or renaming with a name that already exists.
 - Preset regexps can be matched against the preset name, display name or both. Existing regexps keep matching
   the name only.

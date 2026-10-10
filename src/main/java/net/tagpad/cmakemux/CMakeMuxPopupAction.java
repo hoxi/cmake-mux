@@ -1,6 +1,5 @@
 package net.tagpad.cmakemux;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
@@ -45,8 +44,10 @@ public class CMakeMuxPopupAction extends AnAction implements DumbAware {
 
         CMakeMuxSelectionService selection = CMakeMuxSelectionService.getInstance(project);
 
-        // Track the action that corresponds to the active entry to preselect it in the popup
+        // Track the action that corresponds to the active entry to preselect it in the popup,
+        // falling back to the first entry for the loaded CMakeLists.txt
         final AnAction[] activeActionRef = new AnAction[1];
+        AnAction loadedAction = null;
 
         for (int i = 0; i < max; i++) {
             final int index = i;
@@ -55,18 +56,24 @@ public class CMakeMuxPopupAction extends AnAction implements DumbAware {
                     ? entry.getNickname()
                     : entry.getPath();
 
-            boolean isActive = selection.isActive(entry);
-            Icon icon = isActive ? AllIcons.Debugger.NextStatement : AllIcons.Actions.ProjectDirectory;
+            CMakeMuxSelectionService.ActiveState state = selection.getState(entry);
+            Icon icon = CMakeMuxIcons.forState(state);
 
-            AnAction action = new AnAction(title, entry.getPath(), icon) {
+            AnAction action = new AnAction(title, CMakeMuxIcons.tooltip(entry, state), icon) {
                 @Override
                 public void actionPerformed(@NotNull AnActionEvent ignored) {
                     CMakeMuxLoader.loadEntry(project, entries.get(index));
                 }
             };
             group.add(action);
-            if (isActive && activeActionRef[0] == null) activeActionRef[0] = action;
+            if (state == CMakeMuxSelectionService.ActiveState.ACTIVE && activeActionRef[0] == null) {
+                activeActionRef[0] = action;
+            }
+            if (state == CMakeMuxSelectionService.ActiveState.CMAKELISTS_LOADED && loadedAction == null) {
+                loadedAction = action;
+            }
         }
+        if (activeActionRef[0] == null) activeActionRef[0] = loadedAction;
 
         ListPopup popup = JBPopupFactory.getInstance()
                 .createActionGroupPopup(
