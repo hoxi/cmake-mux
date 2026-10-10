@@ -43,7 +43,10 @@ The plugin also provides a panel where you can manage your pinned CMake projects
 
 The panel lists pinned projects and highlights the active one with a yellow arrow. Double‑click any project to load it
 using CLion’s “Load CMake Project.” The “Enable CMake presets for <project>” panel lets you specify any number of
-regular expressions; presets whose names match are enabled automatically.
+regular expressions; presets whose names match are enabled automatically. For each regular expression you choose
+whether it is matched against the preset name, the display name, or both. Matching is case-insensitive and a match
+anywhere in the name is enough, use `^...$` to match the whole name (e.g. `.*` enables all presets, `^debug$` only
+the preset named `debug`).
 
 ![main_mux_win.png](docs/main_mux_win.png)
 

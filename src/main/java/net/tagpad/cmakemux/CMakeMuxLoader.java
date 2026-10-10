@@ -53,8 +53,8 @@ public final class CMakeMuxLoader {
             CMakeMuxSelectionService.getInstance(project).setActivePath(vf.getPath());
 
             // The project load is asynchronous; the handler waits for the imported profiles
-            List<String> regexps = entry.getRegexps();
-            CMakeMuxPresetHandler.getInstance(project).enableMatchingPresets(regexps != null ? regexps : List.of());
+            List<CMakeMuxPresetFilter> filters = entry.getPresetFilters();
+            CMakeMuxPresetHandler.getInstance(project).enableMatchingPresets(filters != null ? filters : List.of());
         });
     }
 }

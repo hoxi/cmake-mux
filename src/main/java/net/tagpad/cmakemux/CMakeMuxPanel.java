@@ -15,9 +15,11 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
+import com.intellij.ui.ColoredListCellRenderer;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.JBSplitter;
 import com.intellij.ui.SideBorder;
+import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBList;
@@ -41,28 +43,28 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
 
     // Details panel components
     private JBLabel detailsTitleLabel;
-    private JBList<String> regexpList;
-    private DefaultListModel<String> regexpModel;
+    private JBList<CMakeMuxPresetFilter> regexpList;
+    private DefaultListModel<CMakeMuxPresetFilter> regexpModel;
 
-    private List<String> snapshotRegexModel() {
-        List<String> regs = new ArrayList<>();
-        for (int i = 0; i < regexpModel.size(); i++) regs.add(regexpModel.get(i));
+    private List<CMakeMuxPresetFilter> snapshotRegexModel() {
+        List<CMakeMuxPresetFilter> regs = new ArrayList<>();
+        for (int i = 0; i < regexpModel.size(); i++) regs.add(regexpModel.get(i).copy());
         return regs;
     }
 
     private void persistRegexpModelToState(CMakeMuxEntry selectedEntry) {
         if (selectedEntry == null) return;
-        List<String> regs = snapshotRegexModel();
+        List<CMakeMuxPresetFilter> regs = snapshotRegexModel();
         ApplicationManager.getApplication().runWriteAction(() -> {
             List<CMakeMuxEntry> stateList = CMakeMuxState.getInstance(project).getEntries();
             for (CMakeMuxEntry e : stateList) {
                 if (com.intellij.openapi.util.io.FileUtil.pathsEqual(e.getPath(), selectedEntry.getPath())) {
-                    e.setRegexps(regs);
+                    e.setPresetFilters(regs);
                     break;
                 }
             }
             // Keep the in-memory selected entry in sync
-            selectedEntry.setRegexps(regs);
+            selectedEntry.setPresetFilters(regs);
         });
     }
 
@@ -192,6 +194,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         regexpModel = new DefaultListModel<>();
         regexpList = new JBList<>(regexpModel);
         regexpList.setVisibleRowCount(8);
+        regexpList.setCellRenderer(new PresetFilterRenderer());
 
         ToolbarDecorator decorator = ToolbarDecorator.createDecorator(regexpList)
                 .setAddAction(e -> addRegex())
@@ -215,9 +218,9 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
 
         regexpModel.clear();
         if (sel != null) {
-            List<String> regs = sel.getRegexps();
+            List<CMakeMuxPresetFilter> regs = sel.getPresetFilters();
             if (regs != null) {
-                for (String r : regs) regexpModel.addElement(r);
+                for (CMakeMuxPresetFilter r : regs) regexpModel.addElement(r.copy());
             }
         }
     }
@@ -225,13 +228,12 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     private void addRegex() {
         CMakeMuxEntry sel = list.getSelectedValue();
         if (sel == null) return;
-        String input = Messages.showInputDialog(project, "Enter regexp to enable presets:", "Add Preset Regex", Messages.getQuestionIcon());
-        if (input == null) return;
-        String trimmed = input.trim();
-        if (trimmed.isEmpty()) return;
+        CMakeMuxPresetFilterDialog dialog = new CMakeMuxPresetFilterDialog(project, "Add Preset Regexp",
+                new CMakeMuxPresetFilter("", true, true));
+        if (!dialog.showAndGet()) return;
 
         // Update UI first so selection can be set to the new item
-        regexpModel.addElement(trimmed);
+        regexpModel.addElement(dialog.getFilter());
         regexpList.setSelectedIndex(regexpModel.getSize() - 1);
         regexpList.ensureIndexIsVisible(regexpModel.getSize() - 1);
 
@@ -244,14 +246,12 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         int idx = regexpList.getSelectedIndex();
         if (sel == null || idx < 0) return;
 
-        String current = regexpModel.get(idx);
-        String input = Messages.showInputDialog(project, "Edit regexp:", "Edit Enable Preset Regexp", Messages.getQuestionIcon(), current, null);
-        if (input == null) return;
-        String trimmed = input.trim();
-        if (trimmed.isEmpty()) return;
+        CMakeMuxPresetFilterDialog dialog = new CMakeMuxPresetFilterDialog(project, "Edit Preset Regexp",
+                regexpModel.get(idx));
+        if (!dialog.showAndGet()) return;
 
         // Update UI first and keep selection
-        regexpModel.set(idx, trimmed);
+        regexpModel.set(idx, dialog.getFilter());
         regexpList.setSelectedIndex(idx);
         regexpList.ensureIndexIsVisible(idx);
 
@@ -413,6 +413,22 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
                 setFont(getFont().deriveFont(Font.PLAIN));
             }
             return this;
+        }
+    }
+
+    private static class PresetFilterRenderer extends ColoredListCellRenderer<CMakeMuxPresetFilter> {
+        @Override
+        protected void customizeCellRenderer(@NotNull JList<? extends CMakeMuxPresetFilter> list, CMakeMuxPresetFilter value,
+                                             int index, boolean selected, boolean hasFocus) {
+            if (value == null) return;
+            append(value.getRegexp() != null ? value.getRegexp() : "");
+            String target;
+            if (value.isMatchName() && value.isMatchDisplayName()) target = "name, display name";
+            else if (value.isMatchName()) target = "name";
+            else if (value.isMatchDisplayName()) target = "display name";
+            else target = "nothing";
+            append("  " + target, SimpleTextAttributes.GRAYED_ATTRIBUTES);
+            setToolTipText("Matched against: " + target);
         }
     }
 
