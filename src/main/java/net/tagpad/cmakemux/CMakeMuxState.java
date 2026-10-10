@@ -21,8 +21,6 @@ public class CMakeMuxState implements PersistentStateComponent<CMakeMuxState.Sta
 
     public static class State {
         public List<CMakeMuxEntry> entries = new ArrayList<>();
-        // Id of the entry last loaded (several entries may share the same CMakeLists.txt)
-        public String activeEntryId;
     }
 
     private final Project project;
@@ -41,7 +39,6 @@ public class CMakeMuxState implements PersistentStateComponent<CMakeMuxState.Sta
     @Override
     public void loadState(@NotNull State state) {
         this.state.entries = new ArrayList<>(state.entries);
-        this.state.activeEntryId = state.activeEntryId;
         // Normalize legacy paths on load
         for (CMakeMuxEntry e : this.state.entries) {
             if (e != null && e.getPath() != null) {
@@ -90,13 +87,5 @@ public class CMakeMuxState implements PersistentStateComponent<CMakeMuxState.Sta
 
     public void removeById(String id) {
         state.entries.removeIf(e -> e.getId().equals(id));
-    }
-
-    public @Nullable String getActiveEntryId() {
-        return state.activeEntryId;
-    }
-
-    public void setActiveEntryId(@Nullable String id) {
-        state.activeEntryId = id;
     }
 }
