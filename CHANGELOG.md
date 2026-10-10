@@ -7,6 +7,8 @@
 - An invalid preset regexp no longer prevents all other regexps from enabling presets. Invalid regexps are reported.
 - Preset regexps of a previously loaded project are no longer applied when quickly switching to another project.
 - More robust enabling of presets when CMake loads profiles slowly or in several steps.
+- The CMake Mux tool window keeps the position it was moved to, instead of returning to the left on every project
+  open.
 - Detection of the loaded CMakeLists.txt at startup now retries with a real delay and also follows CMake reloads.
 
 ### Additions
