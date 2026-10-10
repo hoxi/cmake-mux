@@ -1,5 +1,20 @@
 # Changelog
 
+## [2026.2]
+
+### Fixes
+
+- An invalid preset regexp no longer prevents all other regexps from enabling presets. Invalid regexps are reported.
+- Preset regexps of a previously loaded project are no longer applied when quickly switching to another project.
+- More robust enabling of presets when CMake loads profiles slowly or in several steps.
+
+### Additions
+
+- Preset regexps can be matched against the preset name, display name or both. Existing regexps keep matching
+  the name only.
+- Preset regexps are validated when added or edited.
+- Updated dependencies, requires CLion 2026.2 or later (JBR 25).
+
 ## [2026.1.1]
 
 ### Fixes
