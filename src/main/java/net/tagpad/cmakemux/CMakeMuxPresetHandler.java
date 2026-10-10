@@ -25,7 +25,7 @@ import java.util.regex.PatternSyntaxException;
 
 /**
  * Internal-API based helper to enable all imported CMake profiles
- * whose names match any of the provided regex patterns.
+ * whose name and/or display name match any of the provided regex patterns.
  * "Enable presets" in CLion is implemented via enabling the imported
  * read-only CMake profiles that correspond to those presets.
  * This code is intentionally reflective and defensive to survive across CLion changes,
@@ -63,13 +63,13 @@ public final class CMakeMuxPresetHandler implements Disposable {
     }
 
     /**
-     * Enable the presets matching {@code regexes} for the CMake project being loaded.
+     * Enable the presets matching {@code presetFilters} for the CMake project being loaded.
      * Cancels any session started by a previous call. Must be called on the EDT.
      */
-    public void enableMatchingPresets(@NotNull List<String> regexes) {
+    public void enableMatchingPresets(@NotNull List<CMakeMuxPresetFilter> presetFilters) {
         cancelActiveSession();
 
-        List<CompiledFilter> filters = compile(regexes);
+        List<CompiledFilter> filters = compile(presetFilters);
         if (filters.isEmpty()) return;
 
         Disposable session = Disposer.newDisposable(this, "CMakeMux preset enabling");
@@ -80,13 +80,20 @@ public final class CMakeMuxPresetHandler implements Disposable {
         subscribeAndEnableOnChange(session, filters);
     }
 
-    private List<CompiledFilter> compile(List<String> regexes) {
+    private List<CompiledFilter> compile(List<CMakeMuxPresetFilter> presetFilters) {
         List<CompiledFilter> filters = new ArrayList<>();
         List<String> invalid = new ArrayList<>();
-        for (String regex : regexes) {
+        for (CMakeMuxPresetFilter f : presetFilters) {
+            if (f == null) continue;
+            String regex = f.getRegexp();
             if (regex == null || regex.isBlank()) continue;
+            if (!f.isMatchName() && !f.isMatchDisplayName()) {
+                LOG.warn("[CMakeMux] Ignoring preset regexp '" + regex + "' that matches neither name nor display name");
+                continue;
+            }
             try {
-                filters.add(new CompiledFilter(Pattern.compile(regex, Pattern.CASE_INSENSITIVE), true, false));
+                filters.add(new CompiledFilter(Pattern.compile(regex, Pattern.CASE_INSENSITIVE),
+                        f.isMatchName(), f.isMatchDisplayName()));
             } catch (PatternSyntaxException e) {
                 LOG.warn("[CMakeMux] Ignoring invalid preset regexp '" + regex + "': " + e.getDescription());
                 invalid.add(regex);

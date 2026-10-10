@@ -19,7 +19,10 @@ public class CMakeMuxEntry {
     @Attribute("path")
     private String path;
 
-    // Regxp for enabling CMake presets (per entry/target)
+    // Regexps for enabling CMake presets (per entry/target)
+    private List<CMakeMuxPresetFilter> presetFilters = new ArrayList<>();
+
+    // Legacy format (plain regexps matched against the profile name), migrated to presetFilters on load
     private List<String> regexps = new ArrayList<>();
 
     // Required for XML serialization
@@ -47,14 +50,38 @@ public class CMakeMuxEntry {
         this.path = FileUtil.toSystemIndependentName(path);
     }
 
+    @Tag("presetFilters")
+    @XCollection(style = XCollection.Style.v2)
+    public List<CMakeMuxPresetFilter> getPresetFilters() {
+        return presetFilters;
+    }
+
+    public void setPresetFilters(List<CMakeMuxPresetFilter> presetFilters) {
+        this.presetFilters = (presetFilters == null) ? new ArrayList<>() : new ArrayList<>(presetFilters);
+    }
+
+    /** @deprecated legacy storage, only kept to read old configurations. Use {@link #getPresetFilters()}. */
+    @Deprecated
     @Tag("regexps")
     @XCollection(style = XCollection.Style.v2, elementName = "re")
     public List<String> getRegexps() {
         return regexps;
     }
 
+    /** @deprecated legacy storage, only kept to read old configurations. Use {@link #setPresetFilters(List)}. */
+    @Deprecated
     public void setRegexps(List<String> regexps) {
         this.regexps = (regexps == null) ? new ArrayList<>() : new ArrayList<>(regexps);
+    }
+
+    /** Converts legacy regexps to preset filters. They used to be matched against the profile name only. */
+    public void migrateLegacyRegexps() {
+        if (presetFilters == null) presetFilters = new ArrayList<>();
+        if (regexps == null || regexps.isEmpty()) return;
+        for (String re : regexps) {
+            if (re != null && !re.isBlank()) presetFilters.add(new CMakeMuxPresetFilter(re, true, false));
+        }
+        regexps = new ArrayList<>();
     }
 
     @Override
