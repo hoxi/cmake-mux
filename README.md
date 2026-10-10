@@ -10,9 +10,15 @@ This plugin enables quick CMake project switching in CLion via:
 - Project tool window context action for any CMakeLists.txt, “Pin to CMake Mux”
 - New CMake mux panel to manage pinned projects
 - Popup action to easily switch projects via keyboard shortcuts
-- Automatic CMake preset enabling for selected projects
+- Automatic CMake preset enabling for selected projects, using regular expressions
+- The same CMakeLists.txt can be pinned several times, each pin with its own set of presets
+- The active pin is highlighted and shown in the status bar
 
 All this enables switching between multiple CMake projects more convenient compared to the standard CLion experience.
+
+## Requirements
+
+CLion 2026.2 or later. For older CLion versions, use CMake Mux 2026.1.1.
 
 ## Background
 
@@ -24,8 +30,8 @@ This plugin adds a shortlist of user-defined projects. Double‑click any item t
 CMake Project”).
 
 Additionally, while CLion automatically imports any CMake presets it finds for a particular project location, they start
-disabled. The plugin lets you define regular expressions per project shortcut to automatically enable matching presets
-after switching.
+disabled. The plugin lets you define regular expressions per pinned project; when switching, exactly the matching
+presets are enabled and all other presets are disabled.
 
 ## Details
 
@@ -33,8 +39,8 @@ When you right‑click any `CMakeLists.txt`, the plugin provides a “Pin to CMa
 
 ![Pin to CMake Mux](docs/pin_to_mux.png)
 
-Adding a `CMakeLIsts.txt` to the mux requires a unique nickname. The same `CMakeLists.txt` can be pinned several
-times, e.g. a top-level `CMakeLists.txt` with different presets enabled for each pin:
+Adding a `CMakeLists.txt` to the mux requires a unique nickname. The same `CMakeLists.txt` can be pinned several
+times, e.g. a top-level `CMakeLists.txt` with different presets enabled for each pin. Names that already exist are marked as invalid:
 
 ![pin_to_mux_window.png](docs/pin_to_mux_window.png)
 
@@ -46,16 +52,20 @@ The panel lists pinned projects. Double‑click any project to load it using CLi
 
 The active project is highlighted with a yellow arrow: its `CMakeLists.txt` is loaded and the enabled presets are
 exactly the ones selected by its regular expressions. A gray arrow means that only the `CMakeLists.txt` is known to be
-loaded, e.g. when it was loaded with CLion's own “Load CMake Project” or the enabled presets were changed by hand. The
+loaded, e.g. when it was loaded with CLion’s own “Load CMake Project” or the enabled presets were changed by hand. The
 arrows are updated whenever CLion loads a CMake project or the presets change, also at IDE startup, where CLion itself
 restores the last loaded project and presets.
 
-The “Enable CMake presets for <project>” panel lets you specify any number of regular expressions; presets whose names
-match are enabled automatically. Double-click a regular expression (or use the edit button) to edit it. For each
+The “Enable CMake presets for <project>” panel lets you specify any number of regular expressions; presets whose name
+and/or display name match are enabled automatically. Double-click a regular expression (or use the edit button) to edit it. For each
 regular expression you choose whether it is matched against the preset name, the display name, or both. Matching is
 case-insensitive and a match anywhere in the name is enough, use `^...$` to match the whole name (e.g. `.*` enables
-all presets, `^debug$` only the preset named `debug`). When the pin's `CMakeLists.txt` is the loaded one, the dialog
+all presets, `^debug$` only the preset named `debug`). When the pin’s `CMakeLists.txt` is the loaded one, the dialog
 shows how many and which of its presets a regular expression matches while editing it.
+
+> [!NOTE]
+> Regular expressions created with earlier versions of the plugin keep their old behavior and are matched against the
+> preset name only (only “Name” is checked). Edit them to also match the display name.
 
 Switching between two pins of the `CMakeLists.txt` that is already loaded does not reload the project. Instead, the
 presets matching the new pin are enabled and all other presets are disabled. Loading a pin always enables exactly the
@@ -71,9 +81,9 @@ The action “Select CMake Mux Project...” can be bound to a custom keyboard s
 
 ![select_mux_proj.png](docs/select_mux_proj.png)
 
-Invoking the action/shortcut shows a popup with the first nine pinned projects. Press a digit to load the corresponding
-project, or use the arrow keys and Enter. Invoking the action/keyboard shortcut again will cycle through the next
-projects in the list.
+Invoking the action/shortcut shows a popup with the first nine pinned projects, with the same yellow and gray arrows as
+the panel. The active pin is preselected. Press a digit to load the corresponding project, or use the arrow keys and
+Enter. Invoking the action/keyboard shortcut again will cycle through the next projects in the list.
 
 ![popup.png](docs/popup.png)
 
@@ -84,6 +94,6 @@ projects in the list.
 
 ## Future
 
-The plugin will receive updates as long as CLion/Jetbrains continue to support the APIs and hooks used by the plugin.
-And if Jetbrains ever decides to add a similar features to CLion, this plugin will be obsolete. See
+The plugin will receive updates as long as CLion/JetBrains continue to support the APIs and hooks used by the plugin.
+And if JetBrains ever decides to add a similar feature to CLion, this plugin will be obsolete. See
 this [feature request](https://youtrack.jetbrains.com/issue/CPP-1537) for more details.
