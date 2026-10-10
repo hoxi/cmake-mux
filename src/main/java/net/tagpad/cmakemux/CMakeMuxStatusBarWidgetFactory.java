@@ -2,6 +2,7 @@ package net.tagpad.cmakemux;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.StatusBar;
 import com.intellij.openapi.wm.StatusBarWidget;
 import com.intellij.openapi.wm.StatusBarWidgetFactory;
@@ -67,8 +68,7 @@ public class CMakeMuxStatusBarWidgetFactory implements StatusBarWidgetFactory {
 
         @Override
         public @NotNull String getText() {
-            String names = activeNames();
-            return names.isEmpty() ? "" : "CMake Mux: " + names;
+            return activeNames();
         }
 
         @Override
@@ -80,14 +80,20 @@ public class CMakeMuxStatusBarWidgetFactory implements StatusBarWidgetFactory {
         public @Nullable String getTooltipText() {
             List<CMakeMuxEntry> active = CMakeMuxSelectionService.getInstance(project).getActiveEntries();
             if (active.isEmpty()) return null;
-            return "Active CMake Mux project: " + active.stream()
-                    .map(e -> e.getNickname() + " (" + e.getPath() + ")")
-                    .collect(Collectors.joining(", "));
+            return "<html>" + active.stream()
+                    .map(Widget::describe)
+                    .collect(Collectors.joining("<br><br>")) + "</html>";
         }
 
         @Override
         public @Nullable Consumer<MouseEvent> getClickConsumer() {
             return e -> CMakeMuxToolWindowFactory.activate(project);
+        }
+
+        /** Full information about the entry for the tooltip. */
+        private static String describe(CMakeMuxEntry e) {
+            return "<b>CMake Mux: " + StringUtil.escapeXmlEntities(e.getNickname()) + "</b><br>"
+                    + StringUtil.escapeXmlEntities(e.getPath());
         }
 
         private String activeNames() {

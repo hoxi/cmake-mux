@@ -48,8 +48,8 @@ the enabled presets are exactly the ones selected by its regular expressions. A 
 presets were changed by hand. The arrows are updated whenever CLion loads a CMake project or the presets change, also
 at IDE startup, where CLion itself restores the last loaded project and presets.
 
-While a pin is active (yellow arrow), its name is shown in the status bar at the bottom right. Clicking it opens the
-CMake Mux tool window. The status bar entry can be hidden via the status bar context menu. Double‑click any project to load it
+While a pin is active (yellow arrow), its name is shown in the status bar at the bottom right. Hovering shows the
+`CMakeLists.txt` path, clicking it opens the CMake Mux tool window. The status bar entry can be hidden via the status bar context menu. Double‑click any project to load it
 using CLion’s “Load CMake Project.” The “Enable CMake presets for <project>” panel lets you specify any number of
 regular expressions; presets whose names match are enabled automatically. For each regular expression you choose
 whether it is matched against the preset name, the display name, or both. Matching is case-insensitive and a match
