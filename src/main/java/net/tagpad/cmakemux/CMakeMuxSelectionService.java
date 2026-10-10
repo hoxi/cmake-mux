@@ -99,10 +99,10 @@ public final class CMakeMuxSelectionService implements Disposable {
         if (path != null) path = FileUtil.toSystemIndependentName(path);
         if (path != null && path.equals(activePath)) return;
         this.activePath = path;
-        CMakeMuxState state = CMakeMuxState.getInstance(project);
-        CMakeMuxEntry activeEntry = state.findById(state.getActiveEntryId());
+        CMakeMuxWorkspaceState workspace = CMakeMuxWorkspaceState.getInstance(project);
+        CMakeMuxEntry activeEntry = CMakeMuxState.getInstance(project).findById(workspace.getActiveEntryId());
         if (activeEntry != null && (path == null || !FileUtil.pathsEqual(path, activeEntry.getPath()))) {
-            state.setActiveEntryId(null);
+            workspace.setActiveEntryId(null);
         }
         scheduleRefresh();
     }
@@ -110,12 +110,12 @@ public final class CMakeMuxSelectionService implements Disposable {
     /** Set the entry that was loaded (several entries may share the same CMakeLists.txt). */
     public void setActiveEntry(@NotNull CMakeMuxEntry entry) {
         this.activePath = entry.getPath();
-        CMakeMuxState.getInstance(project).setActiveEntryId(entry.getId());
+        CMakeMuxWorkspaceState.getInstance(project).setActiveEntryId(entry.getId());
         scheduleRefresh();
     }
 
     public @Nullable String getActiveEntryId() {
-        return CMakeMuxState.getInstance(project).getActiveEntryId();
+        return CMakeMuxWorkspaceState.getInstance(project).getActiveEntryId();
     }
 
     public @NotNull ActiveState getState(@NotNull CMakeMuxEntry entry) {
@@ -155,7 +155,7 @@ public final class CMakeMuxSelectionService implements Disposable {
                 }
             }
             // Several entries may select the same presets; prefer the one loaded last
-            String activeId = state.getActiveEntryId();
+            String activeId = getActiveEntryId();
             boolean activeMatches = matching.stream().anyMatch(e -> e.getId().equals(activeId));
             for (CMakeMuxEntry e : loaded) {
                 boolean active = matching.contains(e) && (!activeMatches || e.getId().equals(activeId));
