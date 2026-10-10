@@ -54,8 +54,8 @@ The “Enable CMake presets for <project>” panel lets you specify any number o
 match are enabled automatically. Double-click a regular expression (or use the edit button) to edit it. For each
 regular expression you choose whether it is matched against the preset name, the display name, or both. Matching is
 case-insensitive and a match anywhere in the name is enough, use `^...$` to match the whole name (e.g. `.*` enables
-all presets, `^debug$` only the preset named `debug`). While editing a regular expression, the dialog shows how many
-and which presets of the loaded CMake project it matches.
+all presets, `^debug$` only the preset named `debug`). When the pin's `CMakeLists.txt` is the loaded one, the dialog
+shows how many and which of its presets a regular expression matches while editing it.
 
 Switching between two pins of the `CMakeLists.txt` that is already loaded does not reload the project. Instead, the
 presets matching the new pin are enabled and all other presets are disabled. Loading a pin always enables exactly the
