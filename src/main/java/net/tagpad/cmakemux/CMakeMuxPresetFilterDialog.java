@@ -5,6 +5,7 @@ import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.ValidationInfo;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.ui.DocumentAdapter;
+import com.intellij.ui.TitledSeparator;
 import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBList;
@@ -12,6 +13,7 @@ import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.Alarm;
 import com.intellij.util.ui.FormBuilder;
+import com.intellij.util.ui.JBFont;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
@@ -35,10 +37,10 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
     private final Project project;
     // Only the presets of the loaded CMake project are known, so matches are shown for its entries only
     private final boolean showMatches;
-    private final JBTextField regexpField = new JBTextField(30);
+    private final JBTextField regexpField = new JBTextField(40);
     private final JBCheckBox matchNameBox = new JBCheckBox("Name");
     private final JBCheckBox matchDisplayNameBox = new JBCheckBox("Display name");
-    private final JBLabel matchCountLabel = new JBLabel();
+    private JLabel matchCountComment;
     private final DefaultListModel<String> matchModel = new DefaultListModel<>();
     private final Alarm matchAlarm;
 
@@ -74,15 +76,12 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
 
     @Override
     protected @Nullable JComponent createCenterPanel() {
-        JPanel matchPanel = new JPanel();
-        matchPanel.setLayout(new BoxLayout(matchPanel, BoxLayout.X_AXIS));
-        matchPanel.add(matchNameBox);
-        matchPanel.add(Box.createHorizontalStrut(JBUI.scale(12)));
-        matchPanel.add(matchDisplayNameBox);
-
-        JBLabel hint = new JBLabel("Case-insensitive, matches anywhere in the name. Use ^...$ to match the whole name.");
-        hint.setComponentStyle(UIUtil.ComponentStyle.SMALL);
-        hint.setFontColor(UIUtil.FontColor.BRIGHTER);
+        // Layout following the IntelliJ Platform UI guidelines: labeled rows, comments below their component,
+        // related checkboxes on one row and a titled separator for the preview group
+        JPanel matchAgainstRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        matchAgainstRow.add(matchNameBox);
+        matchAgainstRow.add(Box.createHorizontalStrut(JBUI.scale(UIUtil.DEFAULT_HGAP * 2)));
+        matchAgainstRow.add(matchDisplayNameBox);
 
         // Fixed sizes, so changing content (long preset names, counts) never re-layouts the dialog;
         // otherwise the layout may fall back to the text field's minimum size
@@ -90,9 +89,12 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
         regexpField.setMinimumSize(fieldSize);
 
         FormBuilder form = FormBuilder.createFormBuilder()
-                .addLabeledComponent("Regexp:", regexpField)
-                .addComponentToRightColumn(hint)
-                .addLabeledComponent("Match against:", matchPanel);
+                .addLabeledComponent("Regular expression:", regexpField)
+                .addComponentToRightColumn(comment(
+                        "Case-insensitive, matches anywhere in the name. Use ^...$ to match the whole name."), 0)
+                .addLabeledComponent("Match against:", matchAgainstRow, UIUtil.LARGE_VGAP)
+                .addComponentToRightColumn(comment(
+                        "The preset name and/or the display name from CMakePresets.json."), 0);
 
         if (showMatches) {
             JBList<String> matchList = new JBList<>(matchModel);
@@ -101,10 +103,22 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
             Dimension listSize = new Dimension(fieldSize.width, JBUI.scale(120));
             matchScroll.setPreferredSize(listSize);
             matchScroll.setMinimumSize(listSize);
-            form.addLabeledComponent("Matching presets:", matchCountLabel)
-                    .addComponentToRightColumn(matchScroll);
+            matchCountComment = comment(" ");
+
+            form.addComponent(new TitledSeparator("Matching Presets"), UIUtil.LARGE_VGAP)
+                    .addComponent(matchScroll)
+                    .addComponent(matchCountComment, 0);
         }
         return form.getPanel();
+    }
+
+    /** Comment (context help) below a component, styled like the platform's comments. */
+    private static JLabel comment(String text) {
+        JBLabel label = new JBLabel(text);
+        label.setForeground(JBUI.CurrentTheme.ContextHelp.FOREGROUND);
+        label.setFont(JBFont.medium());
+        label.setBorder(JBUI.Borders.emptyTop(2));
+        return label;
     }
 
     @Override
@@ -116,12 +130,12 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
     protected @Nullable ValidationInfo doValidate() {
         String regexp = regexpField.getText().trim();
         if (regexp.isEmpty()) {
-            return new ValidationInfo("Enter a regexp", regexpField);
+            return new ValidationInfo("Enter a regular expression", regexpField);
         }
         try {
             Pattern.compile(regexp);
         } catch (PatternSyntaxException e) {
-            return new ValidationInfo("Invalid regexp: " + e.getDescription(), regexpField);
+            return new ValidationInfo("Invalid regular expression: " + e.getDescription(), regexpField);
         }
         if (!matchNameBox.isSelected() && !matchDisplayNameBox.isSelected()) {
             return new ValidationInfo("Select name, display name or both", matchDisplayNameBox);
@@ -145,13 +159,13 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
         matchModel.clear();
         List<CMakeMuxPresetInfo> presets = CMakeMuxPresetHandler.getInstance(project).getLoadedPresets();
         if (presets.isEmpty()) {
-            matchCountLabel.setText("No CMake presets loaded");
+            matchCountComment.setText("No CMake presets are loaded.");
             return;
         }
         CMakeMuxPresetFilter filter = getFilter();
         CMakeMuxPresetMatcher matcher = CMakeMuxPresetMatcher.of(List.of(filter));
         if (!matcher.getInvalidRegexps().isEmpty() || filter.getRegexp().isEmpty()) {
-            matchCountLabel.setText("- of " + presets.size());
+            matchCountComment.setText(presets.size() + " presets loaded.");
             return;
         }
         int count = 0;
@@ -161,6 +175,6 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
                 count++;
             }
         }
-        matchCountLabel.setText(count + " of " + presets.size());
+        matchCountComment.setText(count + " of " + presets.size() + " presets match.");
     }
 }
