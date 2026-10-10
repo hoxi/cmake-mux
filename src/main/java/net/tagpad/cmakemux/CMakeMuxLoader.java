@@ -52,15 +52,9 @@ public final class CMakeMuxLoader {
 
             CMakeMuxSelectionService.getInstance(project).setActivePath(vf.getPath());
 
-            // Small delay to allow the action to run before we enable presets.
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Do nothing
-            }
-
+            // The project load is asynchronous; the handler waits for the imported profiles
             List<String> regexps = entry.getRegexps();
-            CMakeMuxPresetHandler.enableMatchingPresets(project, regexps != null ? regexps : List.of());
+            CMakeMuxPresetHandler.getInstance(project).enableMatchingPresets(regexps != null ? regexps : List.of());
         });
     }
 }
