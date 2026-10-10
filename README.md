@@ -39,7 +39,7 @@ When you right‑click any `CMakeLists.txt`, the plugin provides a “Pin to CMa
 
 ![Pin to CMake Mux](docs/pin_to_mux.png)
 
-Adding a `CMakeLists.txt` to the mux requires a unique nickname. The same `CMakeLists.txt` can be pinned several
+Adding a `CMakeLists.txt` to the mux requires a unique nickname (case-insensitive). The same `CMakeLists.txt` can be pinned several
 times, e.g. a top-level `CMakeLists.txt` with different presets enabled for each pin. Names that already exist are marked as invalid:
 
 ![pin_to_mux_window.png](docs/pin_to_mux_window.png)

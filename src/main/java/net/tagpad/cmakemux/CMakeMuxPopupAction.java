@@ -8,6 +8,7 @@ import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.ListPopup;
 import com.intellij.openapi.ui.popup.JBPopupListener;
 import com.intellij.openapi.ui.popup.LightweightWindowEvent;
+import com.intellij.openapi.util.Key;
 import com.intellij.ui.popup.list.ListPopupImpl;
 import org.jetbrains.annotations.NotNull;
 import com.intellij.openapi.project.DumbAwareAction;
@@ -19,17 +20,18 @@ import java.util.List;
 
 public class CMakeMuxPopupAction extends AnAction implements DumbAware {
 
-    // Keep a strong reference while popup is shown; clear on close
-    private static ListPopup lastPopup = null;
+    // The popup shown for a project, kept while visible and cleared on close (per project, not shared between windows)
+    private static final Key<ListPopup> POPUP_KEY = Key.create("CMakeMux.popup");
 
     @Override
-    public void actionPerformed(AnActionEvent e) {
+    public void actionPerformed(@NotNull AnActionEvent e) {
         Project project = e.getProject();
         if (project == null) return;
 
         // If a popup is already visible, advance selection and return
-        if (lastPopup != null && lastPopup.isVisible()) {
-            advanceSelection(lastPopup);
+        ListPopup shown = project.getUserData(POPUP_KEY);
+        if (shown != null && shown.isVisible()) {
+            advanceSelection(shown);
             return;
         }
 
@@ -92,10 +94,10 @@ public class CMakeMuxPopupAction extends AnAction implements DumbAware {
         installCyclingShortcut(popup);
 
         // Remember popup while shown; clear when closed
-        lastPopup = popup;
+        project.putUserData(POPUP_KEY, popup);
         popup.addListener(new JBPopupListener() {
             @Override public void onClosed(@NotNull LightweightWindowEvent event) {
-                if (lastPopup == popup) lastPopup = null;
+                if (project.getUserData(POPUP_KEY) == popup) project.putUserData(POPUP_KEY, null);
             }
         });
 
@@ -111,8 +113,8 @@ public class CMakeMuxPopupAction extends AnAction implements DumbAware {
         AnAction cycleAction = new DumbAwareAction() {
             @Override
             public void actionPerformed(@NotNull AnActionEvent e) {
-                if (lastPopup != null && lastPopup.isVisible()) {
-                    advanceSelection(lastPopup);
+                if (popup.isVisible()) {
+                    advanceSelection(popup);
                 }
             }
         };
