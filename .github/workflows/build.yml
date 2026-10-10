@@ -3,8 +3,7 @@ name: Build IntelliJ Plugin with JBR 25
 
 on:
   push:
-    # main and release branches like 2026_2 or 2026_1_1
-    branches: [ main, '[0-9][0-9][0-9][0-9]_*' ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
