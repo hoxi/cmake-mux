@@ -19,37 +19,39 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
+import java.awt.*;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
  * Dialog for adding/editing a preset regexp and selecting what it is matched against.
- * Shows which presets of the loaded CMake project the regexp matches while typing.
+ * When the entry's CMakeLists.txt is the loaded one, shows which of its presets the regexp matches while typing.
  */
 public class CMakeMuxPresetFilterDialog extends DialogWrapper {
     // Delay before recomputing the matching presets after a change
     private static final int MATCH_DELAY_MS = 300;
 
     private final Project project;
-    private final @Nullable String entryPath;
+    // Only the presets of the loaded CMake project are known, so matches are shown for its entries only
+    private final boolean showMatches;
     private final JBTextField regexpField = new JBTextField(30);
     private final JBCheckBox matchNameBox = new JBCheckBox("Name");
     private final JBCheckBox matchDisplayNameBox = new JBCheckBox("Display name");
     private final JBLabel matchCountLabel = new JBLabel();
     private final DefaultListModel<String> matchModel = new DefaultListModel<>();
-    private final JBLabel loadedNote = new JBLabel();
     private final Alarm matchAlarm;
 
     /**
-     * @param entryPath the CMakeLists.txt of the entry the regexp belongs to, used to tell whether the shown
-     *                  presets are the entry's presets
+     * @param entryPath the CMakeLists.txt of the entry the regexp belongs to; matching presets are only shown
+     *                  when it is the loaded CMakeLists.txt
      */
     public CMakeMuxPresetFilterDialog(@NotNull Project project, @NotNull String title,
                                       @NotNull CMakeMuxPresetFilter initial, @Nullable String entryPath) {
         super(project);
         this.project = project;
-        this.entryPath = entryPath;
+        String loadedPath = CMakeMuxSelectionService.getInstance(project).getActivePath();
+        this.showMatches = entryPath != null && loadedPath != null && FileUtil.pathsEqual(loadedPath, entryPath);
         this.matchAlarm = new Alarm(Alarm.ThreadToUse.SWING_THREAD, getDisposable());
         setTitle(title);
         regexpField.setText(initial.getRegexp() != null ? initial.getRegexp() : "");
@@ -67,7 +69,7 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
 
         init();
         initValidation();
-        updateMatches();
+        if (showMatches) updateMatches();
     }
 
     @Override
@@ -82,22 +84,27 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
         hint.setComponentStyle(UIUtil.ComponentStyle.SMALL);
         hint.setFontColor(UIUtil.FontColor.BRIGHTER);
 
-        JBList<String> matchList = new JBList<>(matchModel);
-        matchList.setVisibleRowCount(6);
-        matchList.setEmptyText("No matching presets");
-        JBScrollPane matchScroll = new JBScrollPane(matchList);
+        // Fixed sizes, so changing content (long preset names, counts) never re-layouts the dialog;
+        // otherwise the layout may fall back to the text field's minimum size
+        Dimension fieldSize = regexpField.getPreferredSize();
+        regexpField.setMinimumSize(fieldSize);
 
-        loadedNote.setComponentStyle(UIUtil.ComponentStyle.SMALL);
-        loadedNote.setFontColor(UIUtil.FontColor.BRIGHTER);
-
-        return FormBuilder.createFormBuilder()
+        FormBuilder form = FormBuilder.createFormBuilder()
                 .addLabeledComponent("Regexp:", regexpField)
                 .addComponentToRightColumn(hint)
-                .addLabeledComponent("Match against:", matchPanel)
-                .addLabeledComponent("Matching presets:", matchCountLabel)
-                .addComponentToRightColumn(matchScroll)
-                .addComponentToRightColumn(loadedNote)
-                .getPanel();
+                .addLabeledComponent("Match against:", matchPanel);
+
+        if (showMatches) {
+            JBList<String> matchList = new JBList<>(matchModel);
+            matchList.setEmptyText("No matching presets");
+            JBScrollPane matchScroll = new JBScrollPane(matchList);
+            Dimension listSize = new Dimension(fieldSize.width, JBUI.scale(120));
+            matchScroll.setPreferredSize(listSize);
+            matchScroll.setMinimumSize(listSize);
+            form.addLabeledComponent("Matching presets:", matchCountLabel)
+                    .addComponentToRightColumn(matchScroll);
+        }
+        return form.getPanel();
     }
 
     @Override
@@ -128,6 +135,7 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
     }
 
     private void scheduleMatchUpdate() {
+        if (!showMatches) return;
         matchAlarm.cancelAllRequests();
         matchAlarm.addRequest(this::updateMatches, MATCH_DELAY_MS);
     }
@@ -136,15 +144,6 @@ public class CMakeMuxPresetFilterDialog extends DialogWrapper {
     private void updateMatches() {
         matchModel.clear();
         List<CMakeMuxPresetInfo> presets = CMakeMuxPresetHandler.getInstance(project).getLoadedPresets();
-
-        String loadedPath = CMakeMuxSelectionService.getInstance(project).getActivePath();
-        boolean otherProjectLoaded = !presets.isEmpty() && entryPath != null
-                && (loadedPath == null || !FileUtil.pathsEqual(loadedPath, entryPath));
-        loadedNote.setText(otherProjectLoaded
-                ? "Presets of the loaded CMake project" + (loadedPath != null ? " " + loadedPath : "")
-                  + ", not of this pin's CMakeLists.txt"
-                : "");
-
         if (presets.isEmpty()) {
             matchCountLabel.setText("No CMake presets loaded");
             return;
