@@ -58,13 +58,13 @@ public final class CMakeMuxPresetHandler implements Disposable {
 
     /**
      * Enable the presets matching {@code presetFilters} (and disable other presets) for the CMake project being
-     * loaded. Cancels any session started by a previous call. Must be called on the EDT.
+     * loaded. Without regexps all presets are disabled, consistent with {@link #switchPresets} and
+     * {@link #presetsMatch}. Cancels any session started by a previous call. Must be called on the EDT.
      */
     public void enableMatchingPresets(@NotNull List<CMakeMuxPresetFilter> presetFilters) {
         cancelActiveSession();
 
         CMakeMuxPresetMatcher matcher = compile(presetFilters);
-        if (matcher.isEmpty()) return;
 
         Disposable session = Disposer.newDisposable(this, "CMakeMux preset enabling");
         activeSession = session;
