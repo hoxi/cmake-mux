@@ -193,6 +193,16 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         regexpList.setVisibleRowCount(8);
         regexpList.setCellRenderer(new PresetFilterRenderer());
 
+        // Double-click to edit, same as the edit (pen) button
+        regexpList.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)
+                        && regexpList.locationToIndex(e.getPoint()) >= 0) {
+                    editRegexp();
+                }
+            }
+        });
+
         ToolbarDecorator decorator = ToolbarDecorator.createDecorator(regexpList)
                 .setAddAction(e -> addRegex())
                 .setEditAction(e -> editRegexp())
