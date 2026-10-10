@@ -56,12 +56,16 @@ loaded, e.g. when it was loaded with CLion’s own “Load CMake Project” or t
 arrows are updated whenever CLion loads a CMake project or the presets change, also at IDE startup, where CLion itself
 restores the last loaded project and presets.
 
+![main_mux_win.png](docs/main_mux_win.png)
+
 The “Enable CMake presets for <project>” panel lets you specify any number of regular expressions; presets whose name
-and/or display name match are enabled automatically. Double-click a regular expression (or use the edit button) to edit it. For each
-regular expression you choose whether it is matched against the preset name, the display name, or both. Matching is
-case-insensitive and a match anywhere in the name is enough, use `^...$` to match the whole name (e.g. `.*` enables
-all presets, `^debug$` only the preset named `debug`). When the pin’s `CMakeLists.txt` is the loaded one, the dialog
-shows how many and which of its presets a regular expression matches while editing it.
+and/or display name match are enabled automatically. Double-click a regular expression (or use the edit button) to
+edit it. For each regular expression you choose whether it is matched against the preset name, the display name, or
+both. Matching is case-insensitive and a match anywhere in the name is enough, use `^...$` to match the whole name
+(e.g. `.*` enables all presets, `^debug$` only the preset named `debug`). When the pin’s `CMakeLists.txt` is the
+loaded one, the dialog shows how many and which of its presets a regular expression matches while editing it.
+
+![preset_regexp_dialog.png](docs/preset_regexp_dialog.png)
 
 > [!NOTE]
 > Regular expressions created with earlier versions of the plugin keep their old behavior and are matched against the
@@ -75,7 +79,7 @@ While a pin is active (yellow arrow), its name is shown in the status bar at the
 `CMakeLists.txt` path, clicking it opens the CMake Mux tool window. The status bar entry can be hidden via the status
 bar context menu.
 
-![main_mux_win.png](docs/main_mux_win.png)
+![status_bar.png](docs/status_bar.png)
 
 The action “Select CMake Mux Project...” can be bound to a custom keyboard shortcut.
 
