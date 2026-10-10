@@ -6,7 +6,6 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.io.FileUtil;
@@ -391,17 +390,6 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             CMakeMuxService.getInstance(project).removeById(sel.getId());
             model.removeElement(sel);
             updateDetailsForSelection();
-        }
-    }
-
-    private void openFile(String path) {
-        String si = FileUtil.toSystemIndependentName(path);
-        String url = VfsUtilCore.pathToUrl(si);
-        VirtualFile vf = VirtualFileManager.getInstance().findFileByUrl(url);
-        if (vf != null) {
-            FileEditorManager.getInstance(project).openFile(vf, true);
-        } else {
-            Messages.showWarningDialog(project, "Cannot locate file:\n" + path, "Open File");
         }
     }
 
