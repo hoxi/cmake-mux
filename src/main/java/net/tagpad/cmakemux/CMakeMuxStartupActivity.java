@@ -18,8 +18,9 @@ public class CMakeMuxStartupActivity implements ProjectActivity, DumbAware {
             return null; // synchronous completion
         }
 
-        // Best-effort detection: try now and then a few delayed attempts.
-        CMakeMuxActiveDetector.detectAndSetActiveBestEffort(project, 5, 200L);
+        // Best-effort detection: try now and then every 500 ms for up to 15 s.
+        // Loads finishing later are picked up through CMakeWorkspaceListener.reloadingFinished.
+        CMakeMuxActiveDetector.detectAndSetActiveBestEffort(project, 30, 500L);
 
         return CompletableFuture.completedFuture(null);
     }
