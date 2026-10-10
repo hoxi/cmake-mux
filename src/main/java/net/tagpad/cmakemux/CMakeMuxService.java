@@ -25,13 +25,8 @@ public final class CMakeMuxService {
     }
 
     public void addOrReplace(@NotNull CMakeMuxEntry entry) {
-        ApplicationManager.getApplication().runWriteAction(() -> {
-            CMakeMuxState.getInstance(project).addOrReplace(entry);
-            // Notify listeners on the UI thread
-            ApplicationManager.getApplication().invokeLater(() ->
-                    project.getMessageBus().syncPublisher(CMakeMuxEvents.TOPIC).entriesChanged()
-            );
-        });
+        CMakeMuxState.getInstance(project).addOrReplace(entry);
+        fireEntriesChanged();
     }
 
     public boolean isNicknameTaken(@NotNull String nickname, @Nullable String exceptId) {
@@ -39,12 +34,14 @@ public final class CMakeMuxService {
     }
 
     public void removeById(@NotNull String id) {
-        ApplicationManager.getApplication().runWriteAction(() -> {
-            CMakeMuxState.getInstance(project).removeById(id);
-            // Notify listeners on the UI thread
-            ApplicationManager.getApplication().invokeLater(() ->
-                    project.getMessageBus().syncPublisher(CMakeMuxEvents.TOPIC).entriesChanged()
-            );
-        });
+        CMakeMuxState.getInstance(project).removeById(id);
+        fireEntriesChanged();
+    }
+
+    // Notify listeners on the UI thread, after the current UI event
+    private void fireEntriesChanged() {
+        ApplicationManager.getApplication().invokeLater(() ->
+                project.getMessageBus().syncPublisher(CMakeMuxEvents.TOPIC).entriesChanged(),
+                project.getDisposed());
     }
 }

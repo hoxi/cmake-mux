@@ -47,11 +47,6 @@ public final class CMakeMuxPresetMatcher {
         return new CMakeMuxPresetMatcher(List.copyOf(filters), List.copyOf(invalid));
     }
 
-    /** True if there are no usable regexps, i.e. nothing matches. */
-    public boolean isEmpty() {
-        return filters.isEmpty();
-    }
-
     public @NotNull List<String> getInvalidRegexps() {
         return invalidRegexps;
     }

@@ -4,8 +4,6 @@ import com.intellij.icons.AllIcons;
 import com.intellij.ide.projectView.ProjectView;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
-import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.io.FileUtil;
@@ -34,9 +32,8 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 
-/** UI for the tool window: list with rename/delete and open on double-click. */
+/** UI for the tool window: list of pinned projects (load on double-click) and the preset regexps of the selected one. */
 public class CMakeMuxPanel extends JPanel implements Disposable {
-    private static final Logger LOG = Logger.getInstance(CMakeMuxPanel.class);
 
     private final Project project;
     private final JBList<CMakeMuxEntry> list;
@@ -56,12 +53,10 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
     private void persistRegexpModelToState(CMakeMuxEntry selectedEntry) {
         if (selectedEntry == null) return;
         List<CMakeMuxPresetFilter> regs = snapshotRegexModel();
-        ApplicationManager.getApplication().runWriteAction(() -> {
-            CMakeMuxEntry e = CMakeMuxState.getInstance(project).findById(selectedEntry.getId());
-            if (e != null) e.setPresetFilters(regs);
-            // Keep the in-memory selected entry in sync
-            selectedEntry.setPresetFilters(regs);
-        });
+        CMakeMuxEntry e = CMakeMuxState.getInstance(project).findById(selectedEntry.getId());
+        if (e != null) e.setPresetFilters(regs);
+        // Keep the in-memory selected entry in sync
+        selectedEntry.setPresetFilters(regs);
         // The regexps decide whether the entry is the active one
         CMakeMuxSelectionService.getInstance(project).scheduleRefresh();
     }
@@ -112,10 +107,10 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             }
         });
 
-        // Double-click to open target file
+        // Double-click on an entry to load its CMake project
         list.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
+                if (isDoubleClickOnRow(list, e)) {
                     CMakeMuxEntry sel = list.getSelectedValue();
                     if (sel != null) loadCMakeProject(sel);
                 }
@@ -206,8 +201,7 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         // Double-click to edit, same as the edit (pen) button
         regexpList.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)
-                        && regexpList.locationToIndex(e.getPoint()) >= 0) {
+                if (isDoubleClickOnRow(regexpList, e)) {
                     editRegexp();
                 }
             }
@@ -352,11 +346,9 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
         moveSelected(list, model, delta, () -> {
             List<CMakeMuxEntry> newOrder = new ArrayList<>();
             for (int i = 0; i < model.size(); i++) newOrder.add(model.get(i));
-            ApplicationManager.getApplication().runWriteAction(() -> {
-                List<CMakeMuxEntry> stateList = CMakeMuxState.getInstance(project).getEntries();
-                stateList.clear();
-                stateList.addAll(newOrder);
-            });
+            List<CMakeMuxEntry> stateList = CMakeMuxState.getInstance(project).getEntries();
+            stateList.clear();
+            stateList.addAll(newOrder);
         });
     }
 
@@ -433,6 +425,15 @@ public class CMakeMuxPanel extends JPanel implements Disposable {
             append("  " + target, SimpleTextAttributes.GRAYED_ATTRIBUTES);
             setToolTipText("Matched against: " + target);
         }
+    }
+
+    /** Left double-click on a row; locationToIndex alone also returns the last row for clicks below it. */
+    private static boolean isDoubleClickOnRow(JList<?> jList, MouseEvent e) {
+        if (e.getClickCount() != 2 || !SwingUtilities.isLeftMouseButton(e)) return false;
+        int idx = jList.locationToIndex(e.getPoint());
+        if (idx < 0) return false;
+        Rectangle bounds = jList.getCellBounds(idx, idx);
+        return bounds != null && bounds.contains(e.getPoint());
     }
 
     private void loadCMakeProject(@NotNull CMakeMuxEntry entry) {

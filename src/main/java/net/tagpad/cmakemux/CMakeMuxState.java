@@ -69,7 +69,8 @@ public class CMakeMuxState implements PersistentStateComponent<CMakeMuxState.Sta
 
     public boolean isNicknameTaken(@NotNull String nickname, @Nullable String exceptId) {
         for (CMakeMuxEntry e : state.entries) {
-            if (nickname.equals(e.getNickname()) && !e.getId().equals(exceptId)) return true;
+            // Case-insensitive, names differing only in case are too easy to confuse
+            if (nickname.equalsIgnoreCase(e.getNickname()) && !e.getId().equals(exceptId)) return true;
         }
         return false;
     }
