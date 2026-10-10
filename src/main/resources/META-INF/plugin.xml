@@ -14,6 +14,7 @@
                     icon="/iconMonoSimple.svg"/>
         <projectService serviceImplementation="net.tagpad.cmakemux.CMakeMuxState"/>
         <postStartupActivity implementation="net.tagpad.cmakemux.CMakeMuxStartupActivity"/>
+        <notificationGroup id="CMake Mux" displayType="BALLOON"/>
     </extensions>
 
     <actions>

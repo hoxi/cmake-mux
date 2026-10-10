@@ -1,16 +1,27 @@
 package net.tagpad.cmakemux;
 
+import com.intellij.notification.NotificationGroupManager;
+import com.intellij.notification.NotificationType;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.components.Service;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Disposer;
+import com.intellij.util.Alarm;
+import com.intellij.util.messages.MessageBusConnection;
+import com.intellij.util.messages.Topic;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Internal-API based helper to enable all imported CMake profiles
@@ -21,23 +32,105 @@ import java.util.stream.Collectors;
  * but it is still fragile by nature. These APIs are however present since long time and probably
  * will not change very often.
  */
-public final class CMakeMuxPresetHandler {
+@Service(Service.Level.PROJECT)
+public final class CMakeMuxPresetHandler implements Disposable {
     private static final Logger LOG = Logger.getInstance(CMakeMuxPresetHandler.class);
 
-    public static void enableMatchingPresets(@NotNull Project project, @NotNull List<String> regexes) {
-        if (regexes.isEmpty()) return;
+    // Stop listening for profilesChanged when no event has been received for this long
+    private static final int IDLE_TIMEOUT_MS = 10_000;
+    // Never listen longer than this, even if events keep coming
+    private static final long MAX_SESSION_MS = 60_000;
 
-        List<Pattern> patterns = regexes.stream()
-                .map(p -> Pattern.compile(p, Pattern.CASE_INSENSITIVE))
-                .collect(Collectors.toList());
+    private final Project project;
+
+    // The currently active enable session (EDT only). Replaced when a new entry is loaded.
+    private Disposable activeSession;
+
+    public CMakeMuxPresetHandler(@NotNull Project project) {
+        this.project = project;
+    }
+
+    public static CMakeMuxPresetHandler getInstance(@NotNull Project project) {
+        return project.getService(CMakeMuxPresetHandler.class);
+    }
+
+    /** A compiled regex and which profile names it should be matched against. */
+    record CompiledFilter(Pattern pattern, boolean matchName, boolean matchDisplayName) {
+        boolean matches(@Nullable String name, @Nullable String displayName) {
+            return (matchName && name != null && pattern.matcher(name).find())
+                    || (matchDisplayName && displayName != null && pattern.matcher(displayName).find());
+        }
+    }
+
+    /**
+     * Enable the presets matching {@code regexes} for the CMake project being loaded.
+     * Cancels any session started by a previous call. Must be called on the EDT.
+     */
+    public void enableMatchingPresets(@NotNull List<String> regexes) {
+        cancelActiveSession();
+
+        List<CompiledFilter> filters = compile(regexes);
+        if (filters.isEmpty()) return;
+
+        Disposable session = Disposer.newDisposable(this, "CMakeMux preset enabling");
+        activeSession = session;
 
         // Subscribe to CMakeSettingsListener.profilesChanged to act exactly when
         // the preset loader finishes importing new profiles after the CMakeLists switch.
-        subscribeAndEnableOnChange(project, patterns);
+        subscribeAndEnableOnChange(session, filters);
+    }
+
+    private List<CompiledFilter> compile(List<String> regexes) {
+        List<CompiledFilter> filters = new ArrayList<>();
+        List<String> invalid = new ArrayList<>();
+        for (String regex : regexes) {
+            if (regex == null || regex.isBlank()) continue;
+            try {
+                filters.add(new CompiledFilter(Pattern.compile(regex, Pattern.CASE_INSENSITIVE), true, false));
+            } catch (PatternSyntaxException e) {
+                LOG.warn("[CMakeMux] Ignoring invalid preset regexp '" + regex + "': " + e.getDescription());
+                invalid.add(regex);
+            }
+        }
+        if (!invalid.isEmpty()) {
+            NotificationGroupManager.getInstance()
+                    .getNotificationGroup("CMake Mux")
+                    .createNotification("Invalid CMake preset regexp ignored",
+                            String.join(", ", invalid), NotificationType.WARNING)
+                    .notify(project);
+        }
+        return filters;
+    }
+
+    private void cancelActiveSession() {
+        if (activeSession != null) {
+            Disposer.dispose(activeSession);
+            activeSession = null;
+        }
+    }
+
+    private void finishSession(Disposable session) {
+        if (activeSession == session) activeSession = null;
+        Disposer.dispose(session);
+    }
+
+    private boolean isActive(Disposable session) {
+        return activeSession == session && !project.isDisposed();
     }
 
     @SuppressWarnings("unchecked")
-    private static void subscribeAndEnableOnChange(Project project, List<Pattern> patterns) {
+    private void subscribeAndEnableOnChange(Disposable session, List<CompiledFilter> filters) {
+        Alarm alarm = new Alarm(Alarm.ThreadToUse.SWING_THREAD, session);
+        long deadline = System.currentTimeMillis() + MAX_SESSION_MS;
+
+        // Final pass when the profiles have been quiet for a while (or we have waited long enough)
+        Runnable onIdle = () -> {
+            if (!isActive(session)) return;
+            LOG.info("[CMakeMux] No more profilesChanged events, final pass enabling matching profiles.");
+            enableSafely(filters);
+            finishSession(session);
+        };
+
         try {
             Class<?> listenerClass = Class.forName("com.jetbrains.cidr.cpp.cmake.CMakeSettingsListener");
             Class<?> companionClass = Class.forName("com.jetbrains.cidr.cpp.cmake.CMakeSettingsListener$Companion");
@@ -46,25 +139,27 @@ public final class CMakeMuxPresetHandler {
             Method getTopic = findMethod(companionClass, "getTOPIC");
             if (getTopic == null) {
                 LOG.warn("[CMakeMux] CMakeSettingsListener.Companion.getTOPIC() not found, bail out.");
+                finishSession(session);
                 return;
             }
             Object topic = getTopic.invoke(companion);
 
-            // Create a one-shot listener proxy
-            Object listener = java.lang.reflect.Proxy.newProxyInstance(
+            // Listener proxy, active for the lifetime of the session
+            Object listener = Proxy.newProxyInstance(
                     listenerClass.getClassLoader(),
                     new Class<?>[]{listenerClass},
                     (proxy, method, args) -> {
                         if ("profilesChanged".equals(method.getName())) {
                             LOG.info("[CMakeMux] profilesChanged event received, enabling matching profiles.");
                             ApplicationManager.getApplication().invokeLater(() -> {
-                                try {
-                                    int count = enableMatchingImportedProfiles(project, patterns);
-                                    LOG.info("[CMakeMux] Enabled " + count + " CMake profiles (from presets) by regex.");
-                                } catch (Throwable t) {
-                                    LOG.warn("[CMakeMux] Failed to enable presets after profilesChanged", t);
-                                }
-                            });
+                                if (!isActive(session)) return;
+                                int count = enableSafely(filters);
+                                LOG.info("[CMakeMux] Enabled " + count + " CMake profiles (from presets) by regex.");
+                                // Restart the idle timer, but respect the overall deadline
+                                alarm.cancelAllRequests();
+                                long remaining = deadline - System.currentTimeMillis();
+                                alarm.addRequest(onIdle, (int) Math.max(0, Math.min(IDLE_TIMEOUT_MS, remaining)));
+                            }, project.getDisposed());
                         }
                         if ("equals".equals(method.getName())) return proxy == args[0];
                         if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
@@ -73,37 +168,34 @@ public final class CMakeMuxPresetHandler {
                     }
             );
 
-            // Subscribe via the message bus connection
-            com.intellij.util.messages.MessageBusConnection connection =
-                    project.getMessageBus().connect();
-            connection.subscribe((com.intellij.util.messages.Topic<Object>) topic, listener);
+            // Disconnected automatically when the session is disposed
+            MessageBusConnection connection = project.getMessageBus().connect(session);
+            connection.subscribe((Topic<Object>) topic, listener);
 
-            // Timeout: disconnect after 10s if no event fires (fallback to direct enable)
-            com.intellij.util.Alarm alarm = new com.intellij.util.Alarm(com.intellij.util.Alarm.ThreadToUse.SWING_THREAD, connection);
-            alarm.addRequest(() -> {
-                connection.disconnect();
-                LOG.info("[CMakeMux] Timeout waiting for profilesChanged, enabling matching profiles directly.");
-                try {
-                    enableMatchingImportedProfiles(project, patterns);
-                } catch (Throwable t) {
-                    LOG.warn("[CMakeMux] Failed to enable presets on timeout", t);
-                }
-            }, 10_000);
+            // If no event fires at all, enable directly after the idle timeout
+            alarm.addRequest(onIdle, IDLE_TIMEOUT_MS);
 
         } catch (Throwable t) {
             LOG.warn("[CMakeMux] Failed to subscribe to CMakeSettingsListener, falling back to direct enable.", t);
             ApplicationManager.getApplication().invokeLater(() -> {
-                try {
-                    enableMatchingImportedProfiles(project, patterns);
-                } catch (Throwable ex) {
-                    LOG.warn("[CMakeMux] Direct enable fallback failed", ex);
-                }
-            });
+                if (!isActive(session)) return;
+                enableSafely(filters);
+                finishSession(session);
+            }, project.getDisposed());
+        }
+    }
+
+    private int enableSafely(List<CompiledFilter> filters) {
+        try {
+            return enableMatchingImportedProfiles(filters);
+        } catch (Throwable t) {
+            LOG.warn("[CMakeMux] Failed to enable matching presets", t);
+            return 0;
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static int enableMatchingImportedProfiles(Project project, List<Pattern> patterns) throws Exception {
+    private int enableMatchingImportedProfiles(List<CompiledFilter> filters) throws Exception {
         // Resolve CLion’s CMake settings
         Class<?> settingsClass;
         try {
@@ -129,44 +221,60 @@ public final class CMakeMuxPresetHandler {
             LOG.warn("[CMakeMux] CMakeSettings.getProfiles() not found, bail out.");
             return 0;
         }
-        Object res = getProfiles.invoke(settings);
-        if (!(res instanceof List)) {
-            LOG.warn("[CMakeMux] CMakeSettings.getProfiles() returned non-list or null, bail out.");
+        Method setProfiles = findMethod(settingsClass, "setProfiles", List.class);
+        if (setProfiles == null) {
+            LOG.warn("[CMakeMux] CMakeSettings.setProfiles(List) not found, bail out.");
             return 0;
         }
-        List<Object> profiles = (List<Object>) res;
-        LOG.info("[CMakeMux] Found " + profiles.size() + " CMake profiles to check against " + patterns.size() + " patterns.");
 
-        // Try withEnabled(boolean) first (Kotlin data-class copy pattern, 2026.1+),
-        // fall back to direct field set for older CLion versions.
-        Method withEnabled = findMethod(profiles.getFirst().getClass(), "withEnabled", boolean.class);
+        // Read, modify and write the profiles in one write action, so the list cannot change in between
+        int[] enabled = {0};
+        Exception[] failure = {null};
+        ApplicationManager.getApplication().runWriteAction(() -> {
+            try {
+                Object res = getProfiles.invoke(settings);
+                if (!(res instanceof List)) {
+                    LOG.warn("[CMakeMux] CMakeSettings.getProfiles() returned non-list or null, bail out.");
+                    return;
+                }
+                List<Object> updatedProfiles = new ArrayList<>((List<Object>) res);
+                LOG.info("[CMakeMux] Found " + updatedProfiles.size() + " CMake profiles to check against "
+                        + filters.size() + " patterns.");
 
-        List<Object> updatedProfiles = new java.util.ArrayList<>(profiles);
-        int enabled = 0;
-        for (int i = 0; i < updatedProfiles.size(); i++) {
-            Object profile = updatedProfiles.get(i);
-            if (profile == null) {
-                LOG.warn("[CMakeMux] Encountered null profile, bail out.");
-                return enabled;
+                enabled[0] = enableMatching(updatedProfiles, filters);
+                // Only write back when something changed. This also avoids re-triggering ourselves
+                // through the profilesChanged event setProfiles() fires.
+                if (enabled[0] > 0) {
+                    setProfiles.invoke(settings, updatedProfiles);
+                }
+            } catch (Exception e) {
+                failure[0] = e;
             }
+        });
+        if (failure[0] != null) throw failure[0];
+        return enabled[0];
+    }
 
-            // Keep dual getter for name/displayName
-            String name = firstNonNull(
-                    invokeStringGetter(profile, "getName"),
-                    invokeStringGetter(profile, "getDisplayName")
-            );
-            if (name == null || name.isEmpty()) continue;
+    /** Enables matching profiles in place in {@code profiles}, returns the number of profiles enabled. */
+    private static int enableMatching(List<Object> profiles, List<CompiledFilter> filters) throws Exception {
+        int enabled = 0;
+        for (int i = 0; i < profiles.size(); i++) {
+            Object profile = profiles.get(i);
+            if (profile == null) continue;
 
-            if (!matchesAny(patterns, name)) continue;
-
+            String name = invokeStringGetter(profile, "getName");
+            String displayName = invokeStringGetter(profile, "getDisplayName");
+            if (!matchesAny(filters, name, displayName)) continue;
 
             Boolean current = invokeBooleanGetter(profile, "getEnabled");
             if (Boolean.TRUE.equals(current)) continue;
 
+            // Try withEnabled(boolean) first (Kotlin data-class copy pattern, 2026.1+),
+            // fall back to direct field set for older CLion versions.
+            Method withEnabled = findMethod(profile.getClass(), "withEnabled", boolean.class);
             if (withEnabled != null) {
                 // 2026.1+: Profile is immutable, use withEnabled() copy method
-                Object updated = withEnabled.invoke(profile, true);
-                updatedProfiles.set(i, updated);
+                profiles.set(i, withEnabled.invoke(profile, true));
             } else {
                 // Legacy: mutate the field directly (pre-2026.1)
                 Field enabledField = findBooleanField(profile.getClass(), "enabled");
@@ -174,35 +282,23 @@ public final class CMakeMuxPresetHandler {
                     LOG.warn("[CMakeMux] Neither withEnabled() nor 'enabled' field found, bail out.");
                     return enabled;
                 }
-                enabledField.setAccessible(true);
                 enabledField.set(profile, true);
             }
             enabled++;
         }
-
-        Method setProfiles = findMethod(settingsClass, "setProfiles", List.class);
-        if (setProfiles == null) {
-            LOG.warn("[CMakeMux] CMakeSettings.setProfiles(List) not found, bail out.");
-            return enabled;
-        }
-        final Object finalSettings = settings;
-        final List<Object> finalProfiles = updatedProfiles;
-        final Method finalSetProfiles = setProfiles;
-        ApplicationManager.getApplication().runWriteAction(() -> {
-            try {
-                finalSetProfiles.invoke(finalSettings, finalProfiles);
-            } catch (Exception e) {
-                LOG.warn("[CMakeMux] setProfiles invocation failed", e);
-            }
-        });
         return enabled;
+    }
+
+    @Override
+    public void dispose() {
+        activeSession = null;
     }
 
     // Utility helpers
 
-    private static boolean matchesAny(List<Pattern> patterns, String name) {
-        for (Pattern p : patterns) {
-            if (p.matcher(name).find()) return true;
+    private static boolean matchesAny(List<CompiledFilter> filters, String name, String displayName) {
+        for (CompiledFilter f : filters) {
+            if (f.matches(name, displayName)) return true;
         }
         return false;
     }
@@ -260,12 +356,5 @@ public final class CMakeMuxPresetHandler {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private static String firstNonNull(String a, String b) {
-        return a != null ? a : b;
-    }
-
-    private CMakeMuxPresetHandler() {
     }
 }
