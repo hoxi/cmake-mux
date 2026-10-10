@@ -15,6 +15,7 @@
   the loaded CMakeLists.txt only switches the enabled presets, without reloading the project.
 - The active pin is shown with a yellow arrow when both its CMakeLists.txt and its presets are loaded, and with a
   gray arrow when only the CMakeLists.txt matches (e.g. loaded with CLion's "Load CMake Project").
+- The active pin (yellow arrow) is shown in the status bar.
 - Loading a pin enables exactly the presets selected by its regexps, other presets are disabled.
 - The name field is marked invalid when pinning or renaming with a name that already exists.
 - Preset regexps can be matched against the preset name, display name or both. Existing regexps keep matching

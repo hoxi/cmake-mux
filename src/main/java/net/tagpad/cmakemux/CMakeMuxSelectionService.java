@@ -8,6 +8,7 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.wm.impl.status.widget.StatusBarWidgetsManager;
 import com.intellij.util.Alarm;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -121,6 +122,15 @@ public final class CMakeMuxSelectionService implements Disposable {
         return states.getOrDefault(entry.getId(), ActiveState.NONE);
     }
 
+    /** Entries with a yellow arrow, normally at most one (several only if they select the same presets). */
+    public @NotNull List<CMakeMuxEntry> getActiveEntries() {
+        List<CMakeMuxEntry> active = new ArrayList<>();
+        for (CMakeMuxEntry e : CMakeMuxState.getInstance(project).getEntries()) {
+            if (getState(e) == ActiveState.ACTIVE) active.add(e);
+        }
+        return active;
+    }
+
     /** Recompute the entry states soon; bursts of events (e.g. while presets are imported) are coalesced. */
     public void scheduleRefresh() {
         if (project.isDisposed()) return;
@@ -155,6 +165,8 @@ public final class CMakeMuxSelectionService implements Disposable {
         states = Map.copyOf(newStates);
         // Always notify, the active path may have changed even if the states did not
         project.getMessageBus().syncPublisher(CMakeMuxSelectionEvents.TOPIC).activeSelectionChanged();
+        // The status bar widget is only shown while there is an active entry
+        project.getService(StatusBarWidgetsManager.class).updateWidget(CMakeMuxStatusBarWidgetFactory.class);
     }
 
     @Override
