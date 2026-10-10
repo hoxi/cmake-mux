@@ -33,7 +33,8 @@ When you right‑click any `CMakeLists.txt`, the plugin provides a “Pin to CMa
 
 ![Pin to CMake Mux](docs/pin_to_mux.png)
 
-Adding a `CMakeLIsts.txt` to the mux requires a nickname:
+Adding a `CMakeLIsts.txt` to the mux requires a unique nickname. The same `CMakeLists.txt` can be pinned several
+times, e.g. a top-level `CMakeLists.txt` with different presets enabled for each pin:
 
 ![pin_to_mux_window.png](docs/pin_to_mux_window.png)
 
@@ -47,6 +48,10 @@ regular expressions; presets whose names match are enabled automatically. For ea
 whether it is matched against the preset name, the display name, or both. Matching is case-insensitive and a match
 anywhere in the name is enough, use `^...$` to match the whole name (e.g. `.*` enables all presets, `^debug$` only
 the preset named `debug`).
+
+Switching between two pins of the `CMakeLists.txt` that is already loaded does not reload the project. Instead, the
+presets matching the new pin are enabled and all other presets are disabled. Double-clicking the active pin reloads
+the project.
 
 ![main_mux_win.png](docs/main_mux_win.png)
 

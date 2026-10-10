@@ -9,10 +9,15 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
-/** Simple model: nickname + absolute path to the CMakeLists.txt */
+/** Simple model: nickname + absolute path to the CMakeLists.txt. Several entries may share the same path. */
 @Tag("entry")
 public class CMakeMuxEntry {
+    // Stable identity, the path is not unique and the nickname can be renamed
+    @Attribute("id")
+    private String id;
+
     @Attribute("nickname")
     private String nickname;
 
@@ -30,8 +35,22 @@ public class CMakeMuxEntry {
     }
 
     public CMakeMuxEntry(String nickname, String path) {
+        this.id = UUID.randomUUID().toString();
         this.nickname = nickname;
         this.path = FileUtil.toSystemIndependentName(path);
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    /** Entries stored by older versions have no id. */
+    public void ensureId() {
+        if (id == null || id.isEmpty()) id = UUID.randomUUID().toString();
     }
 
     public String getNickname() {
@@ -93,11 +112,11 @@ public class CMakeMuxEntry {
     public boolean equals(@Nullable Object o) {
         if (this == o) return true;
         if (!(o instanceof CMakeMuxEntry that)) return false;
-        return Objects.equals(path, that.path);
+        return Objects.equals(id, that.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(path);
+        return Objects.hash(id);
     }
 }
